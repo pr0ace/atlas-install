@@ -30,6 +30,13 @@ on_error() {
 trap 'on_error ${LINENO} $?' ERR
 
 # ════════════════════════════════════════════════
+# CACHED SYSCALLS — computed once for performance
+# ════════════════════════════════════════════════
+readonly ARCH=$(uname -m)
+readonly NPROC=$(nproc)
+readonly HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
+
+# ════════════════════════════════════════════════
 # CONSTANTS — verified from source + releases API
 # ════════════════════════════════════════════════
 GO_VERSION="1.26.0"
@@ -1519,7 +1526,7 @@ install_go() {
     fi
 
     local arch go_file go_sha
-    arch=$(uname -m)
+    arch=$ARCH
     case "$arch" in
         x86_64)  go_file="go${GO_VERSION}.linux-amd64.tar.gz";   go_sha="$GO_SHA_AMD64" ;;
         aarch64) go_file="go${GO_VERSION}.linux-arm64.tar.gz";   go_sha="$GO_SHA_ARM64" ;;
@@ -1585,7 +1592,7 @@ install_picoclaw_binary() {
     step "4/13" "PicoClaw ${PICOCLAW_VERSION} (pre-built binary)"
 
     local arch asset pc_sha
-    arch=$(uname -m)
+    arch=$ARCH
     case "$arch" in
         x86_64)  asset="picoclaw-linux-amd64";   pc_sha="$PC_SHA_AMD64" ;;
         aarch64) asset="picoclaw-linux-arm64";    pc_sha="$PC_SHA_ARM64" ;;
@@ -3309,8 +3316,8 @@ _do_backup() {
   "timestamp_epoch": $(date +%s),
   "trigger": "${trigger}",
   "picoclaw_version": "${pc_ver}",
-  "hostname": "$(hostname 2>/dev/null || echo "unknown")",
-  "arch": "$(uname -m)",
+  "hostname": "${HOSTNAME}",
+  "arch": "${ARCH}",
   "size": "${snap_size}",
   "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
   "ftp_configured": ${has_ftp},
@@ -4947,8 +4954,8 @@ _backup_run() {
   "timestamp_epoch": $(date +%s),
   "trigger": "${trigger}",
   "picoclaw_version": "${pc_ver}",
-  "hostname": "$(hostname 2>/dev/null || echo "unknown")",
-  "arch": "$(uname -m)",
+  "hostname": "${HOSTNAME}",
+  "arch": "${ARCH}",
   "size": "${snap_size}",
   "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
   "ftp_configured": ${has_ftp},
