@@ -3136,10 +3136,10 @@ ABEOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 11: INITIAL BACKUP
+# STEP 12: INITIAL BACKUP
 # ════════════════════════════════════════════════
 initial_backup() {
-    step "11/13" "Initial Backup"
+    step "12/13" "Initial Backup"
 
     printf "  ${DIM}Creating a snapshot of the freshly installed system.${NC}\n"
     printf "  ${DIM}This serves as your recovery point if anything changes.${NC}\n"
@@ -3157,296 +3157,43 @@ initial_backup() {
 }
 
 # ════════════════════════════════════════════════
-# BACKUP ENGINE
+# BACKUP ENGINE — Delegates to CLI wrapper
 # ════════════════════════════════════════════════
 _do_backup() {
     local trigger="${1:-manual}"
+
+    # Delegate to CLI wrapper if available (installed in step 11)
+    if [[ -x "$PICOCLAW_BIN" ]]; then
+        "$PICOCLAW_BIN" backup "$trigger"
+        return $?
+    fi
+
+    # Minimal fallback if CLI wrapper doesn't exist (should never happen)
+    warn "CLI wrapper not found — creating minimal backup fallback"
     local timestamp
     timestamp=$(date +"%m%d%y_%H%M%S")
-    local snap_name="backup_${timestamp}"
-    local snap_dir="${BACKUP_DIR}/${snap_name}"
-
-    local bk_max_keep="18"
-    local bk_interval="6"
-    if [[ -f "$BACKUP_META_FILE" ]]; then
-        source "$BACKUP_META_FILE" 2>/dev/null || true
-        bk_max_keep="${BACKUP_MAX_KEEP:-18}"
-        bk_interval="${BACKUP_INTERVAL_DAYS:-6}"
-    fi
-
-    if [[ "$trigger" == "auto" ]]; then
-        local last_auto_file="${BACKUP_DIR}/.last_auto_backup"
-        if [[ -f "$last_auto_file" ]]; then
-            local last_epoch
-            last_epoch=$(cat "$last_auto_file" 2>/dev/null || echo "0")
-            local now_epoch
-            now_epoch=$(date +%s)
-            local elapsed_days=$(( (now_epoch - last_epoch) / 86400 ))
-            if [[ $elapsed_days -lt $bk_interval ]]; then
-                exit 0
-            fi
-        fi
-    fi
-
+    local snap_dir="${BACKUP_DIR}/backup_${timestamp}"
     mkdir -p "$snap_dir"
 
-    info "Creating backup: ${snap_name}"
-
     if [[ -d "$CONFIG_DIR" ]]; then
-        mkdir -p "${snap_dir}/picoclaw_config"
-        cp -a "$CONFIG_DIR"/. "${snap_dir}/picoclaw_config/" 2>/dev/null || true
-        success "Config dir: ~/.picoclaw/ (config.json, workspace, skills, atlas, etc.)"
+        cp -a "$CONFIG_DIR" "${snap_dir}/picoclaw_config" 2>/dev/null || true
+        success "Backed up config dir"
     fi
 
     if [[ -f "$PICOCLAW_REAL" ]]; then
-        cp -a "$PICOCLAW_REAL" "${snap_dir}/" 2>/dev/null || true
-        success "Binary: picoclaw.bin ($(du -h "$PICOCLAW_REAL" | awk '{print $1}'))"
+        cp -a "$PICOCLAW_REAL" "${snap_dir}/picoclaw.bin" 2>/dev/null || true
+        success "Backed up binary"
     fi
 
-    if [[ -f "$PICOCLAW_BIN" ]]; then
-        cp -a "$PICOCLAW_BIN" "${snap_dir}/picoclaw.wrapper" 2>/dev/null || true
-        success "Wrapper: picoclaw (CLI wrapper)"
-    fi
-
-    local has_units=false
-    mkdir -p "${snap_dir}/systemd"
-    for unit_file in /etc/systemd/system/picoclaw-gateway.service \
-                     /etc/systemd/system/picoclaw-watchdog.service \
-                     /etc/systemd/system/picoclaw-watchdog.timer \
-                     "/etc/systemd/system/${WA_BRIDGE_SERVICE}.service"; do
-        if [[ -f "$unit_file" ]]; then
-            cp -a "$unit_file" "${snap_dir}/systemd/" 2>/dev/null || true
-            has_units=true
-        fi
-    done
-    if [[ "$has_units" == "true" ]]; then
-        success "Systemd units: gateway, watchdog, WhatsApp bridge"
-    fi
-
-    local has_cron=false
-    mkdir -p "${snap_dir}/cron"
-    for cron_file in /etc/cron.d/picoclaw-boot /etc/cron.d/picoclaw-autobackup; do
-        if [[ -f "$cron_file" ]]; then
-            cp -a "$cron_file" "${snap_dir}/cron/" 2>/dev/null || true
-            has_cron=true
-        fi
-    done
-    if [[ "$has_cron" == "true" ]]; then
-        success "Cron jobs: boot fallback, auto-backup"
-    fi
-
-    local has_profile=false
-    mkdir -p "${snap_dir}/profile"
-    for prof_file in /etc/profile.d/picoclaw.sh /etc/profile.d/go.sh; do
-        if [[ -f "$prof_file" ]]; then
-            cp -a "$prof_file" "${snap_dir}/profile/" 2>/dev/null || true
-            has_profile=true
-        fi
-    done
-    if [[ "$has_profile" == "true" ]]; then
-        success "Profile scripts: login banner, Go PATH"
-    fi
-
-    if [[ -f /etc/logrotate.d/picoclaw ]]; then
-        mkdir -p "${snap_dir}/logrotate"
-        cp -a /etc/logrotate.d/picoclaw "${snap_dir}/logrotate/" 2>/dev/null || true
-        success "Logrotate config"
-    fi
-
-    local has_perf=false
-    mkdir -p "${snap_dir}/performance"
-    for perf_file in /etc/sysctl.d/99-picoclaw-performance.conf \
-                     /etc/security/limits.d/99-picoclaw-performance.conf \
-                     /etc/udev/rules.d/60-picoclaw-ioscheduler.rules \
-                     /etc/modules-load.d/bbr.conf \
-                     /etc/systemd/journald.conf.d/picoclaw-size.conf \
-                     /etc/systemd/system.conf.d/picoclaw-timeouts.conf \
-                     /etc/systemd/resolved.conf.d/picoclaw-dns.conf \
-                     /etc/tmpfiles.d/picoclaw-mglru.conf \
-                     /etc/tmpfiles.d/picoclaw-ksm.conf \
-                     /etc/default/zramswap; do
-        if [[ -f "$perf_file" ]]; then
-            cp -a "$perf_file" "${snap_dir}/performance/" 2>/dev/null || true
-            has_perf=true
-        fi
-    done
-    if [[ "$has_perf" == "true" ]]; then
-        success "Performance configs: sysctl, limits, I/O, DNS, zram, etc."
-    fi
-
-    # ── FTP backup ──
-    local has_ftp=false
-    mkdir -p "${snap_dir}/ftp"
-    if [[ -f /etc/vsftpd.conf ]]; then
-        cp -a /etc/vsftpd.conf "${snap_dir}/ftp/" 2>/dev/null || true
-        has_ftp=true
-    fi
-    if [[ -f /etc/vsftpd.user_list ]]; then
-        cp -a /etc/vsftpd.user_list "${snap_dir}/ftp/" 2>/dev/null || true
-    fi
-    if [[ -f "$FTP_CONF_FILE" ]]; then
-        cp -a "$FTP_CONF_FILE" "${snap_dir}/ftp/" 2>/dev/null || true
-    fi
-    if [[ -f /etc/logrotate.d/vsftpd-picoclaw ]]; then
-        cp -a /etc/logrotate.d/vsftpd-picoclaw "${snap_dir}/ftp/" 2>/dev/null || true
-    fi
-    if [[ "$has_ftp" == "true" ]]; then
-        success "FTP configs: vsftpd.conf, user_list, ftp.conf"
-    fi
-
-    # ── WhatsApp bridge backup ──
-    local has_wa=false
-    mkdir -p "${snap_dir}/whatsapp"
-    if [[ -d "$WA_BRIDGE_DIR" ]]; then
-        # Copy source files but NOT node_modules
-        mkdir -p "${snap_dir}/whatsapp/bridge"
-        for wa_item in package.json package-lock.json tsconfig.json src; do
-            if [[ -e "${WA_BRIDGE_DIR}/${wa_item}" ]]; then
-                cp -a "${WA_BRIDGE_DIR}/${wa_item}" "${snap_dir}/whatsapp/bridge/" 2>/dev/null || true
-                has_wa=true
-            fi
-        done
-    fi
-    if [[ -d "$WA_BRIDGE_AUTH_DIR" ]]; then
-        mkdir -p "${snap_dir}/whatsapp/auth"
-        cp -a "$WA_BRIDGE_AUTH_DIR"/. "${snap_dir}/whatsapp/auth/" 2>/dev/null || true
-        has_wa=true
-        if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-            success "WhatsApp auth: creds.json (session preserved — critical)"
-        fi
-    fi
-    if [[ -f "$WA_CONF_FILE" ]]; then
-        cp -a "$WA_CONF_FILE" "${snap_dir}/whatsapp/" 2>/dev/null || true
-        has_wa=true
-    fi
-    if [[ -f "/etc/systemd/system/${WA_BRIDGE_SERVICE}.service" ]]; then
-        cp -a "/etc/systemd/system/${WA_BRIDGE_SERVICE}.service" "${snap_dir}/whatsapp/" 2>/dev/null || true
-        has_wa=true
-    fi
-    if [[ "$has_wa" == "true" ]]; then
-        success "WhatsApp: bridge source, auth session, config, systemd unit"
-    fi
-
-    # ── Ollama backup ──
-    local has_ollama=false
-    mkdir -p "${snap_dir}/ollama"
-    if [[ -f "$OLLAMA_CONF_FILE" ]]; then
-        cp -a "$OLLAMA_CONF_FILE" "${snap_dir}/ollama/" 2>/dev/null || true
-        has_ollama=true
-    fi
-    if [[ -f /tmp/picoclaw-modelfile ]]; then
-        cp -a /tmp/picoclaw-modelfile "${snap_dir}/ollama/" 2>/dev/null || true
-    fi
-    if [[ "$has_ollama" == "true" ]]; then
-        success "Ollama: ollama.conf"
-    fi
-
-    if [[ -d "$PICOCLAW_SRC" ]]; then
-        mkdir -p "${snap_dir}/source"
-        rsync -a --exclude='.git' "$PICOCLAW_SRC/" "${snap_dir}/source/" 2>/dev/null || \
-            cp -a "$PICOCLAW_SRC" "${snap_dir}/source/" 2>/dev/null || true
-        success "Source: /opt/picoclaw (excluding .git)"
-    fi
-
-    local pc_ver=""
-    if [[ -x "$PICOCLAW_REAL" ]]; then
-        pc_ver=$("$PICOCLAW_REAL" version 2>/dev/null) || pc_ver="unknown"
-    fi
-    local snap_size
-    snap_size=$(du -sh "$snap_dir" 2>/dev/null | awk '{print $1}') || snap_size="unknown"
-
-    local atlas_count=0
-    if [[ -d "$ATLAS_SKILLS_DIR" ]]; then
-        for _sd in "${ATLAS_SKILLS_DIR}"/*/; do
-            if [[ -f "${_sd}SKILL.md" ]]; then
-                atlas_count=$((atlas_count + 1))
-            fi
-        done
-    fi
-
-    local wa_session_backed=false
-    if [[ -f "${snap_dir}/whatsapp/auth/creds.json" ]]; then
-        wa_session_backed=true
-    fi
-
-    cat > "${snap_dir}/backup.meta" << METAEOF
-{
-  "backup_name": "${snap_name}",
-  "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "timestamp_epoch": $(date +%s),
-  "trigger": "${trigger}",
-  "picoclaw_version": "${pc_ver}",
-  "hostname": "${HOSTNAME}",
-  "arch": "${ARCH}",
-  "size": "${snap_size}",
-  "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
-  "ftp_configured": ${has_ftp},
-  "whatsapp_configured": ${has_wa},
-  "whatsapp_session_backed": ${wa_session_backed},
-  "ollama_configured": ${has_ollama},
-  "atlas_skills_installed": ${atlas_count},
-  "contents": {
-    "config_dir": true,
-    "binary": $(if [[ -f "${snap_dir}/picoclaw.bin" ]]; then echo "true"; else echo "false"; fi),
-    "wrapper": $(if [[ -f "${snap_dir}/picoclaw.wrapper" ]]; then echo "true"; else echo "false"; fi),
-    "systemd": ${has_units},
-    "cron": ${has_cron},
-    "profile": ${has_profile},
-    "performance": ${has_perf},
-    "ftp": ${has_ftp},
-    "whatsapp": ${has_wa},
-    "ollama": ${has_ollama},
-    "source": $(if [[ -d "${snap_dir}/source" ]]; then echo "true"; else echo "false"; fi)
-  }
-}
-METAEOF
-    success "Metadata: backup.meta"
-
-    if [[ "$trigger" == "auto" ]]; then
-        date +%s > "${BACKUP_DIR}/.last_auto_backup"
-    fi
-
-    _purge_old_backups "$bk_max_keep"
-
-    local total_backups
-    total_backups=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l)
-    echo ""
-    success "Backup complete: ${BOLD}${snap_dir}${NC} (${snap_size})"
-    info "Total backups: ${total_backups} / max ${bk_max_keep}"
-}
-
-_purge_old_backups() {
-    local max_keep="${1:-18}"
-    local -a all_backups=()
-
-    while IFS= read -r d; do
-        if [[ -n "$d" ]]; then
-            all_backups+=("$d")
-        fi
-    done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | sort)
-
-    local count=${#all_backups[@]}
-    if [[ $count -le $max_keep ]]; then
-        return 0
-    fi
-
-    local to_remove=$((count - max_keep))
-    info "Purging ${to_remove} old backup(s) (keeping ${max_keep})..."
-
-    for (( i=0; i<to_remove; i++ )); do
-        local old_dir="${all_backups[$i]}"
-        local old_name="${old_dir%/}"
-        old_name="${old_name##*/}"
-        rm -rf "$old_dir"
-        success "Purged: ${old_name}"
-    done
+    success "Minimal backup complete: ${snap_dir}"
+    info "Install CLI wrapper to enable full backup features"
 }
 
 # ════════════════════════════════════════════════
-# STEP 12: UNIFIED CLI WRAPPER + LOGIN BANNER
+# STEP 11: UNIFIED CLI WRAPPER + LOGIN BANNER
 # ════════════════════════════════════════════════
 install_extras() {
-    step "12/13" "CLI Wrapper & Login Banner"
+    step "11/13" "CLI Wrapper & Login Banner"
 
     cat > "$PICOCLAW_BIN" << 'WRAPEOF'
 #!/usr/bin/env bash
@@ -7731,8 +7478,8 @@ main() {
     install_ollama            # 8.5/13: Ollama local LLM server (optional)
     install_ftp_server        # 9/13: vsftpd FTP server (optional)
     setup_systemd             # 10/13: service + watchdog + cron + auto-backup cron
-    initial_backup            # 11/13: ask user for initial backup snapshot
-    install_extras            # 12/13: unified picoclaw wrapper + login banner
+    install_extras            # 11/13: unified picoclaw wrapper + login banner
+    initial_backup            # 12/13: ask user for initial backup snapshot
     verify
     final
 }
