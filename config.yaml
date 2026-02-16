@@ -1,0 +1,250 @@
+# ============================================================================
+# PicoClaw Atlas — User Configuration
+# ============================================================================
+# This file defines ALL user-configurable variables for atlas-install.sh.
+# The installer reads these values to skip or pre-fill wizard prompts.
+#
+# HOW TO USE:
+#   1. Copy this file:  cp config.yaml config.local.yaml
+#   2. Edit config.local.yaml with your values
+#   3. Run installer:   bash atlas-install.sh --config config.local.yaml
+#
+# VALUES:
+#   - Strings must be quoted
+#   - Booleans: true / false (lowercase, unquoted)
+#   - Numbers: unquoted integers or floats
+#   - Empty string "" means "not set" (installer will prompt)
+#
+# SECRETS:
+#   - NEVER commit API keys to version control
+#   - config.local.yaml is in .gitignore
+# ============================================================================
+
+# --------------------------------------------------------------------------
+# Installation Method
+# --------------------------------------------------------------------------
+# "binary" = download pre-built release (fast, recommended)
+# "source" = clone repo and compile with Go (requires ~10 min + 2GB RAM)
+install_method: "binary"
+
+# --------------------------------------------------------------------------
+# System Performance Optimizer
+# --------------------------------------------------------------------------
+# Applies deep kernel/network/IO tuning (TCP BBR, sysctl, zram, I/O scheduler,
+# SSD TRIM, tmpfs, DNS, journald, disabled services, IRQ balance, MGLRU, KSM).
+# WARNING: Requires mandatory reboot after installation when enabled.
+performance_optimizer: true
+
+# --------------------------------------------------------------------------
+# LLM Provider
+# --------------------------------------------------------------------------
+# Supported: "openrouter", "zhipu", "openai", "gemini", "groq", "vllm", "ollama"
+# Note: Anthropic models are routed through OpenRouter (set provider to "openrouter"
+#       and pick a Claude model below).
+llm:
+  provider: "openrouter"
+  api_key: ""
+  api_base: ""                           # Auto-set per provider; override for vllm/custom
+  model: ""                              # See model lists below
+
+  # --- Generation defaults ---
+  max_tokens: 8192                       # Max tokens per LLM response
+  temperature: 0.7                       # Sampling temperature (0.0 = deterministic, 1.0 = creative)
+  max_tool_iterations: 20               # Max consecutive tool-call rounds per message
+
+# --- Model reference (pick one and paste into llm.model above) ---
+#
+# OpenRouter models:
+#   "openrouter/quasar-alpha"                      (recommended)
+#   "google/gemini-2.5-pro-preview"
+#   "google/gemini-2.5-flash-preview"
+#   "deepseek/deepseek-chat-v3-0324"
+#   "qwen/qwen3-235b-a22b"
+#   "qwen/qwen3-32b"
+#   "qwen/qwen3-30b-a3b"
+#   "microsoft/phi-4-reasoning-plus"
+#   "deepseek/deepseek-r1"
+#   "meta-llama/llama-4-maverick"
+#   "meta-llama/llama-4-scout"
+#   "google/gemma-3-27b-it"
+#   "mistralai/mistral-small-3.2-24b-instruct"
+#   "microsoft/mai-ds-r1"
+#   "moonshotai/kimi-k2"
+#   "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+#
+# Anthropic (via OpenRouter):
+#   "anthropic/claude-sonnet-4"                    (recommended)
+#   "anthropic/claude-opus-4"
+#   "anthropic/claude-3.7-sonnet"
+#   "anthropic/claude-3.5-haiku"
+#   "anthropic/claude-3.5-sonnet"
+#   "anthropic/claude-3-haiku"
+#   "anthropic/claude-3-opus"
+#
+# Zhipu models:
+#   "glm-4-plus"                                   (recommended)
+#   "glm-4-long"
+#   "glm-4-air"
+#   "glm-4-airx"
+#   "glm-4-flash"
+#   "glm-4-flashx"
+#   "glm-4"
+#   "glm-4v"
+#   "glm-4v-plus"
+#   "glm-zero-preview"
+#   "codegeex-4"
+#   "charglm-4"
+#   "emohaa"
+#   "glm-4-0520"
+#   "glm-4-alltools"
+#
+# OpenAI models:
+#   "gpt-4.1"                                     (recommended)
+#   "gpt-4.1-mini"
+#   "gpt-4.1-nano"
+#   "o4-mini"
+#   "o3"
+#   "o3-mini"
+#   "gpt-4o"
+#   "gpt-4o-mini"
+#   "gpt-4-turbo"
+#   "gpt-4"
+#   "gpt-3.5-turbo"
+#
+# Gemini models:
+#   "gemini-2.5-pro"                               (recommended)
+#   "gemini-2.5-flash"
+#   "gemini-2.0-flash"
+#   "gemini-2.0-flash-lite"
+#   "gemini-1.5-pro"
+#   "gemini-1.5-flash"
+#
+# Groq models:
+#   "meta-llama/llama-4-scout-17b-16e-instruct"   (recommended)
+#   "qwen/qwen3-32b"
+#   "deepseek-r1-distill-llama-70b"
+#   "llama-3.3-70b-versatile"
+#   "llama-3.1-8b-instant"
+#   "llama-guard-3-8b"
+#   "meta-llama/llama-4-maverick-17b-128e-instruct"
+#   "compound-beta"
+#
+# Ollama models (local):
+#   "qwen3:4b"          2.5GB  (recommended)
+#   "phi4-mini"          3.3GB
+#   "nanbeige4.1:3b"    2.0GB
+#   "gemma3:4b"          3.3GB
+#   "qwen3:1.7b"        1.0GB
+#   "smollm3:3b"        2.0GB
+#   "lfm2.5:1.2b"       0.8GB
+#   "qwen3:0.6b"        0.4GB
+#   "deepseek-r1:1.5b"  1.0GB
+#   "gemma3:1b"          0.8GB
+#   "llama3.2:3b"       2.0GB
+#   "mistral:7b"        4.1GB  (needs 8GB+ RAM)
+#   "qwen3:8b"          4.7GB  (needs 8GB+ RAM)
+
+# --------------------------------------------------------------------------
+# Ollama (Local LLM)
+# --------------------------------------------------------------------------
+# Only used when llm.provider is "ollama".
+ollama:
+  enabled: false
+  model: "qwen3:4b"                     # Base model to pull from Ollama registry
+  num_ctx: 8192                          # Context window size (minimum: 8192)
+  host: "127.0.0.1"                      # Ollama API listen address
+  port: 11434                            # Ollama API listen port
+
+# --------------------------------------------------------------------------
+# Voice Transcription (Groq Whisper)
+# --------------------------------------------------------------------------
+# Optional Groq API key for voice message transcription.
+# Skipped if primary provider is already Groq (uses same key).
+groq_voice:
+  api_key: ""
+
+# --------------------------------------------------------------------------
+# Web Search (Brave)
+# --------------------------------------------------------------------------
+brave_search:
+  api_key: ""
+  max_results: 5                         # Results per search query (1-20)
+
+# --------------------------------------------------------------------------
+# Channels — Messaging Platforms
+# --------------------------------------------------------------------------
+
+# --- Telegram ---
+telegram:
+  enabled: false
+  token: ""                              # Bot token from @BotFather
+  user_id: ""                            # Your numeric user ID (e.g. "5323045369")
+  username: ""                           # Your username without @ (e.g. "johndoe")
+
+# --- Discord ---
+discord:
+  enabled: false
+  token: ""                              # Bot token from Discord Developer Portal
+  user_id: ""                            # Your numeric user ID
+  username: ""                           # Your username without # (e.g. "johndoe")
+
+# --- WhatsApp ---
+whatsapp:
+  enabled: false
+  bridge_port: 3001                      # WebSocket bridge port (1-65535)
+  user_id: ""                            # Phone number, international format (e.g. "+14155551234")
+
+# --- Feishu / Lark ---
+feishu:
+  enabled: false
+  app_id: ""
+  app_secret: ""
+  encrypt_key: ""                        # Optional
+  verification_token: ""                 # Optional
+
+# --- MaixCAM ---
+maixcam:
+  enabled: false
+  host: "0.0.0.0"
+  port: 18790
+
+# --------------------------------------------------------------------------
+# Gateway
+# --------------------------------------------------------------------------
+gateway:
+  host: "0.0.0.0"
+  port: 18790
+
+# --------------------------------------------------------------------------
+# FTP Server (vsftpd)
+# --------------------------------------------------------------------------
+ftp:
+  enabled: false
+  user: "root"
+  password: ""                           # Min 8 characters
+  port: 21                               # FTP control port (1-65535)
+  pasv_min_port: 40000                   # Passive mode range start
+  pasv_max_port: 40100                   # Passive mode range end
+  tls: true                              # Enable TLS encryption (self-signed cert)
+
+# --------------------------------------------------------------------------
+# Systemd Service
+# --------------------------------------------------------------------------
+# Installs picoclaw-gateway.service + watchdog timer + @reboot cron fallback.
+systemd:
+  enabled: true
+
+# --------------------------------------------------------------------------
+# Automatic Backups
+# --------------------------------------------------------------------------
+backup:
+  enabled: true
+  interval_days: 6                       # Days between automatic backups
+  max_keep: 18                           # Max snapshots to retain (oldest purged)
+
+# --------------------------------------------------------------------------
+# Atlas Skills Repository
+# --------------------------------------------------------------------------
+# Dynamically discovers and installs all skills from github.com/pr0ace/atlas.
+atlas_skills:
+  enabled: true
