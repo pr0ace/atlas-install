@@ -109,11 +109,27 @@ separator() {
 # Escapes \ and " and strips control characters
 # ════════════════════════════════════════════════
 json_escape() {
-    local s="$1"
-    s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')
-    s="${s//\\/\\\\}"
-    s="${s//\"/\\\"}"
-    printf '%s' "$s"
+    local s="$1" result="" i len
+    len=${#s}
+
+    # Remove control characters character by character (pure bash)
+    for (( i=0; i<len; i++ )); do
+        local c="${s:i:1}"
+        case "$c" in
+            $'\x00'|$'\x01'|$'\x02'|$'\x03'|$'\x04'|$'\x05'|$'\x06'|$'\x07'|$'\x08'|$'\x0b'|$'\x0c'|$'\x0e'|$'\x0f'|$'\x10'|$'\x11'|$'\x12'|$'\x13'|$'\x14'|$'\x15'|$'\x16'|$'\x17'|$'\x18'|$'\x19'|$'\x1a'|$'\x1b'|$'\x1c'|$'\x1d'|$'\x1e'|$'\x1f')
+                # Skip these control characters
+                ;;
+            *)
+                result+="$c"
+                ;;
+        esac
+    done
+
+    # Escape backslashes and double quotes
+    result="${result//\\/\\\\}"
+    result="${result//\"/\\\"}"
+
+    printf '%s' "$result"
 }
 
 # ════════════════════════════════════════════════
