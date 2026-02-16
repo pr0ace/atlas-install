@@ -26,22 +26,6 @@ Clone the repository and run the installer:
 git clone https://github.com/pr0ace/atlas-install.git && cd atlas-install && bash atlas-install.sh
 ```
 
-### Config-Driven Install (Skip Wizard Prompts)
-
-For automated deployments, use a pre-configured YAML file:
-
-```bash
-# Clone the repo
-git clone https://github.com/pr0ace/atlas-install.git && cd atlas-install
-
-# Copy and customize the config
-cp config.yaml config.local.yaml
-nano config.local.yaml  # Edit your settings
-
-# Run with config file
-bash atlas-install.sh --config config.local.yaml
-```
-
 ---
 
 ## Prerequisites
@@ -55,7 +39,7 @@ Before installation, ensure your system meets these requirements:
 | **RAM** | 1 GB minimum (2 GB+ recommended for Ollama) |
 | **Disk** | 10 GB+ free space |
 | **Network** | Active internet connection |
-| **Ports** | 80, 443, 21 (FTP) available |
+| **Ports** | 18790 (gateway), 21 (FTP, if enabled) |
 
 ---
 
