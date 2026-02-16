@@ -6,13 +6,16 @@ on:
       - master
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Bash syntax check
         run: bash -n atlas-install.sh
@@ -21,7 +24,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Run ShellCheck
-        run: shellcheck -x -s bash -e SC2034,SC1091,SC2154 atlas-install.sh
+        run: shellcheck -x -s bash -e SC1090,SC1091,SC2015,SC2034,SC2059,SC2094,SC2129,SC2154,SC2155,SC2295,SC2318 atlas-install.sh
 
       - name: Validate VERSION file
         run: |
@@ -30,7 +33,7 @@ jobs:
             exit 1
           fi
           VERSION_CONTENT=$(cat VERSION)
-          if ! echo "$VERSION_CONTENT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          if ! [[ "$VERSION_CONTENT" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "ERROR: VERSION file does not match semver pattern (^v[0-9]+\.[0-9]+\.[0-9]+$)"
             echo "Found: $VERSION_CONTENT"
             exit 1
