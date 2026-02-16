@@ -1,0 +1,10 @@
+# Auto Claude data directory
+.auto-claude/
+
+# Local config (may contain API keys)
+config.local.yaml
+
+# Automation artifacts
+.auto-claude-security.json
+.auto-claude-status
+.claude_settings.json
