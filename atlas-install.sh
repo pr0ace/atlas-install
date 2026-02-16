@@ -344,16 +344,25 @@ resolve_picoclaw_latest() {
         checksums_body=$(curl -sfL --connect-timeout 10 --max-time 30 "$checksums_url" 2>/dev/null) || true
 
         if [[ -n "$checksums_body" ]]; then
-            local sha=""
+            local sha="" line_match
 
-            sha=$(echo "$checksums_body" | grep -i "picoclaw-linux-amd64" | awk '{print $1}') || true
-            if [[ -n "$sha" ]]; then PC_SHA_AMD64="$sha"; fi
+            line_match=$(echo "$checksums_body" | grep -i "picoclaw-linux-amd64") || true
+            if [[ -n "$line_match" ]]; then
+                read -r sha _ <<< "$line_match"
+                [[ -n "$sha" ]] && PC_SHA_AMD64="$sha"
+            fi
 
-            sha=$(echo "$checksums_body" | grep -i "picoclaw-linux-arm64" | awk '{print $1}') || true
-            if [[ -n "$sha" ]]; then PC_SHA_ARM64="$sha"; fi
+            line_match=$(echo "$checksums_body" | grep -i "picoclaw-linux-arm64") || true
+            if [[ -n "$line_match" ]]; then
+                read -r sha _ <<< "$line_match"
+                [[ -n "$sha" ]] && PC_SHA_ARM64="$sha"
+            fi
 
-            sha=$(echo "$checksums_body" | grep -i "picoclaw-linux-riscv64" | awk '{print $1}') || true
-            if [[ -n "$sha" ]]; then PC_SHA_RISCV64="$sha"; fi
+            line_match=$(echo "$checksums_body" | grep -i "picoclaw-linux-riscv64") || true
+            if [[ -n "$line_match" ]]; then
+                read -r sha _ <<< "$line_match"
+                [[ -n "$sha" ]] && PC_SHA_RISCV64="$sha"
+            fi
 
             success "SHA256 checksums loaded from release assets"
             return 0
@@ -898,7 +907,11 @@ install_system() {
         local need_node=true
         if command -v node &>/dev/null; then
             local node_ver=""
-            node_ver=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || node_ver="0"
+            local node_full_ver
+            node_full_ver=$(node --version 2>/dev/null) || node_full_ver="v0.0.0"
+            node_full_ver="${node_full_ver#v}"
+            node_ver="${node_full_ver%%.*}"
+            [[ -z "$node_ver" ]] && node_ver="0"
             if [[ "$node_ver" =~ ^[0-9]+$ ]] && (( node_ver >= 20 )); then
                 need_node=false
                 success "Node.js $(node --version) already installed (>= 20 OK)"
@@ -915,7 +928,11 @@ install_system() {
                 || die "Node.js install failed"
 
             local installed_ver=""
-            installed_ver=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || installed_ver="0"
+            local installed_full_ver
+            installed_full_ver=$(node --version 2>/dev/null) || installed_full_ver="v0.0.0"
+            installed_full_ver="${installed_full_ver#v}"
+            installed_ver="${installed_full_ver%%.*}"
+            [[ -z "$installed_ver" ]] && installed_ver="0"
             if [[ "$installed_ver" =~ ^[0-9]+$ ]] && (( installed_ver >= 20 )); then
                 success "Node.js $(node --version) installed"
             else
@@ -1146,7 +1163,7 @@ IOEOF
     for dev in /sys/block/sd* /sys/block/nvme* /sys/block/vd* /sys/block/xvd*; do
         if [[ -f "${dev}/queue/scheduler" ]]; then
             local devname
-            devname=$(basename "$dev")
+            devname="${dev##*/}"
             local rot="1"
             rot=$(cat "${dev}/queue/rotational" 2>/dev/null) || rot="1"
             if [[ "$devname" == nvme* ]]; then
@@ -1193,10 +1210,11 @@ IOEOF
             if [[ "$line" =~ ^[[:space:]]*# || -z "$line" ]]; then
                 continue
             fi
-            local mount_point
-            mount_point=$(echo "$line" | awk '{print $2}')
-            local mount_opts
-            mount_opts=$(echo "$line" | awk '{print $4}')
+            local mount_point mount_opts
+            local -a fields
+            read -ra fields <<< "$line"
+            mount_point="${fields[1]}"
+            mount_opts="${fields[3]}"
             if [[ "$mount_point" == "/" || "$mount_point" == "/home" ]]; then
                 if ! echo "$mount_opts" | grep -q "noatime"; then
                     sed -i "s|${mount_opts}|${mount_opts},noatime|" /etc/fstab 2>/dev/null || true
@@ -1516,8 +1534,9 @@ install_go() {
         local cur
         cur=$(go version 2>/dev/null | grep -oP 'go\K[0-9]+\.[0-9]+' || echo "0.0")
         local major minor
-        major=$(echo "$cur" | cut -d. -f1)
-        minor=$(echo "$cur" | cut -d. -f2)
+        major="${cur%%.*}"
+        minor="${cur#*.}"
+        minor="${minor%%.*}"
         if [[ "$major" -ge 1 && "$minor" -ge 24 ]]; then
             success "Go $(go version | grep -oP 'go[0-9.]+') already installed (>= 1.24 OK)"
             return 0
@@ -1636,7 +1655,9 @@ install_picoclaw_binary() {
         for skill_dir in "$PICOCLAW_SRC/skills"/*/; do
             if [[ -f "${skill_dir}SKILL.md" ]]; then
                 cp -r "$skill_dir" "${WORKSPACE_DIR}/skills/"
-                success "Skill: $(basename "$skill_dir")"
+                local skill_name="${skill_dir%/}"
+                skill_name="${skill_name##*/}"
+                success "Skill: $skill_name"
             fi
         done
     fi
@@ -1835,8 +1856,7 @@ install_atlas_skills() {
         for fpath in "${file_paths[@]}"; do
             local rel_path="${fpath#${s_path}/}"
             local target_file="${target_dir}/${rel_path}"
-            local target_file_dir
-            target_file_dir=$(dirname "$target_file")
+            local target_file_dir="${target_file%/*}"
 
             mkdir -p "$target_file_dir"
 
@@ -1913,10 +1933,10 @@ _atlas_install_via_git() {
                 continue
             fi
 
-            local s_name
-            s_name=$(basename "$skill_dir")
-            local s_cat
-            s_cat=$(basename "$category_dir")
+            local s_name="${skill_dir%/}"
+            s_name="${s_name##*/}"
+            local s_cat="${category_dir%/}"
+            s_cat="${s_cat##*/}"
             local target_dir="${ATLAS_SKILLS_DIR}/${s_name}"
 
             mkdir -p "$target_dir"
@@ -1966,18 +1986,20 @@ _atlas_write_metadata() {
         if [[ ! -f "${skill_dir}SKILL.md" ]]; then
             continue
         fi
-        local sname
-        sname=$(basename "$skill_dir")
+        local sname="${skill_dir%/}"
+        sname="${sname##*/}"
 
         local sver="unknown"
         if [[ -f "${skill_dir}VERSION" ]]; then
-            sver=$(head -1 "${skill_dir}VERSION" 2>/dev/null | tr -d '[:space:]') || sver="unknown"
+            sver=$(head -1 "${skill_dir}VERSION" 2>/dev/null) || sver="unknown"
+            sver="${sver//[[:space:]]/}"
         fi
 
         local scat="unknown"
         if [[ -f "${skill_dir}.atlas-origin" ]]; then
             scat=$(grep -E "^category:" "${skill_dir}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || scat="unknown"
+                | sed 's/^category:[[:space:]]*//')  || scat="unknown"
+            scat="${scat//[[:space:]]/}"
         fi
 
         if [[ "$first" == "true" ]]; then
@@ -2290,8 +2312,11 @@ install_whatsapp_bridge() {
     if ! command -v node &>/dev/null; then
         die "Node.js not found — should have been installed in step 1"
     fi
-    local node_major=""
-    node_major=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || node_major="0"
+    local node_major="" node_full_ver
+    node_full_ver=$(node --version 2>/dev/null) || node_full_ver="v0.0.0"
+    node_full_ver="${node_full_ver#v}"
+    node_major="${node_full_ver%%.*}"
+    [[ -z "$node_major" ]] && node_major="0"
     if [[ "$node_major" =~ ^[0-9]+$ ]] && (( node_major >= 20 )); then
         success "Node.js $(node --version) verified (>= 20)"
     else
@@ -3375,8 +3400,8 @@ _purge_old_backups() {
 
     for (( i=0; i<to_remove; i++ )); do
         local old_dir="${all_backups[$i]}"
-        local old_name
-        old_name=$(basename "$old_dir")
+        local old_name="${old_dir%/}"
+        old_name="${old_name##*/}"
         rm -rf "$old_dir"
         success "Purged: ${old_name}"
     done
@@ -5011,8 +5036,8 @@ _backup_purge_old() {
 
     for (( i=0; i<to_remove; i++ )); do
         local old_dir="${all_backups[$i]}"
-        local old_name
-        old_name=$(basename "$old_dir")
+        local old_name="${old_dir%/}"
+        old_name="${old_name##*/}"
         rm -rf "$old_dir"
         echo -e "  ${G}✔${N} Purged: ${D}${old_name}${N}"
     done
@@ -5053,8 +5078,8 @@ _backup_list() {
 
     local num=1
     for bk_dir in "${all_backups[@]}"; do
-        local bk_name
-        bk_name=$(basename "$bk_dir")
+        local bk_name="${bk_dir%/}"
+        bk_name="${bk_name##*/}"
         local bk_trigger="?" bk_ver="?" bk_size="?"
         local meta_file="${bk_dir}/backup.meta"
 
@@ -5354,16 +5379,18 @@ _atlas_status() {
         for sd in "${ATLAS_SKILLS}"/*/; do
             if [[ -f "${sd}SKILL.md" ]]; then
                 actual_count=$((actual_count + 1))
-                local sn=""
-                sn=$(basename "$sd")
+                local sn="${sd%/}"
+                sn="${sn##*/}"
                 local sv="?"
                 if [[ -f "${sd}VERSION" ]]; then
-                    sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+                    sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+                    sv="${sv//[[:space:]]/}"
                 fi
                 local sc="?"
                 if [[ -f "${sd}.atlas-origin" ]]; then
                     sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                        | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || sc="?"
+                        | sed 's/^category:[[:space:]]*//')  || sc="?"
+                    sc="${sc//[[:space:]]/}"
                 fi
                 printf "    ${G}●${N} %-30s ${D}v%-8s %s${N}\n" "$sn" "$sv" "$sc"
             fi
@@ -5406,16 +5433,18 @@ _atlas_list() {
         fi
         count=$((count + 1))
 
-        local sn=""
-        sn=$(basename "$sd")
+        local sn="${sd%/}"
+        sn="${sn##*/}"
         local sv="?"
         if [[ -f "${sd}VERSION" ]]; then
-            sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+            sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+            sv="${sv//[[:space:]]/}"
         fi
         local sc="?"
         if [[ -f "${sd}.atlas-origin" ]]; then
             sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || sc="?"
+                | sed 's/^category:[[:space:]]*//')  || sc="?"
+            sc="${sc//[[:space:]]/}"
         fi
         local fc=""
         fc=$(find "$sd" -type f 2>/dev/null | wc -l) || fc="?"
@@ -5515,7 +5544,7 @@ _atlas_update() {
         for fpath in "${file_paths[@]}"; do
             local rel_path="${fpath#${skill_dir_path}/}"
             local target_file="${target_dir}/${rel_path}"
-            mkdir -p "$(dirname "$target_file")"
+            mkdir -p "${target_file%/*}"
 
             if curl -sf --connect-timeout 10 --max-time 30 \
                 -o "$target_file" "${ATLAS_RAW_BASE}/${fpath}" 2>/dev/null; then
@@ -5581,10 +5610,10 @@ _atlas_update_via_git() {
         for skill_dir in "${category_dir}"*/; do
             if [[ ! -d "$skill_dir" || ! -f "${skill_dir}SKILL.md" ]]; then continue; fi
 
-            local s_name
-            s_name=$(basename "$skill_dir")
-            local s_cat
-            s_cat=$(basename "$category_dir")
+            local s_name="${skill_dir%/}"
+            s_name="${s_name##*/}"
+            local s_cat="${category_dir%/}"
+            s_cat="${s_cat##*/}"
             local target_dir="${ATLAS_SKILLS}/${s_name}"
 
             local is_new=true
@@ -5627,16 +5656,18 @@ _atlas_update_metadata() {
     local first=true
     for sd in "${ATLAS_SKILLS}"/*/; do
         if [[ ! -f "${sd}SKILL.md" ]]; then continue; fi
-        local sn=""
-        sn=$(basename "$sd")
+        local sn="${sd%/}"
+        sn="${sn##*/}"
         local sv="unknown"
         if [[ -f "${sd}VERSION" ]]; then
-            sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="unknown"
+            sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="unknown"
+            sv="${sv//[[:space:]]/}"
         fi
         local sc="unknown"
         if [[ -f "${sd}.atlas-origin" ]]; then
             sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || sc="unknown"
+                | sed 's/^category:[[:space:]]*//')  || sc="unknown"
+            sc="${sc//[[:space:]]/}"
         fi
         if [[ "$first" == "true" ]]; then first=false; else skills_json+=","; fi
         skills_json+="{\"name\":\"$(_json_escape "$sn")\",\"category\":\"$(_json_escape "$sc")\",\"version\":\"$(_json_escape "$sv")\",\"path\":\"$(_json_escape "${ATLAS_SKILLS}/${sn}")\"}"
@@ -7046,8 +7077,11 @@ verify() {
         fi
 
         if command -v node &>/dev/null; then
-            local nv=""
-            nv=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || nv="0"
+            local nv="" node_full_ver
+            node_full_ver=$(node --version 2>/dev/null) || node_full_ver="v0.0.0"
+            node_full_ver="${node_full_ver#v}"
+            nv="${node_full_ver%%.*}"
+            [[ -z "$nv" ]] && nv="0"
             if [[ "$nv" =~ ^[0-9]+$ ]] && (( nv >= 20 )); then
                 success "WhatsApp: Node.js $(node --version) (>= 20 OK)"
             else
@@ -7188,11 +7222,12 @@ verify() {
                 success "Atlas: ${atlas_skill_count} skill(s) installed in ${ATLAS_SKILLS_DIR}/"
                 for sd in "${ATLAS_SKILLS_DIR}"/*/; do
                     if [[ -f "${sd}SKILL.md" ]]; then
-                        local sn
-                        sn=$(basename "$sd")
+                        local sn="${sd%/}"
+                        sn="${sn##*/}"
                         local sv="?"
                         if [[ -f "${sd}VERSION" ]]; then
-                            sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+                            sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+                    sv="${sv//[[:space:]]/}"
                         fi
                         local fc
                         fc=$(find "$sd" -type f 2>/dev/null | wc -l) || fc="?"
@@ -7401,11 +7436,12 @@ EOF
         if [[ -d "$ATLAS_SKILLS_DIR" ]]; then
             for sd in "${ATLAS_SKILLS_DIR}"/*/; do
                 if [[ -f "${sd}SKILL.md" ]]; then
-                    local sn
-                    sn=$(basename "$sd")
+                    local sn="${sd%/}"
+                    sn="${sn##*/}"
                     local sv="?"
                     if [[ -f "${sd}VERSION" ]]; then
-                        sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+                        sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+                    sv="${sv//[[:space:]]/}"
                     fi
                     echo -e "  ${DIM}  ${sn} (v${sv})${NC}"
                 fi
