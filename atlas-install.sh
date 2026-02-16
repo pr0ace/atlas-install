@@ -93,7 +93,9 @@ info()      { echo -e "  ${IN} $1"; }
 success()   { echo -e "  ${CK} $1"; }
 warn()      { echo -e "  ${WN} $1"; }
 die()       { echo -e "  ${XK} $1"; exit 1; }
-separator() { echo -e "\n${DIM}  ──────────────────────────────────────────────${NC}\n"; }
+separator() {
+  echo -e "\n${DIM}  ──────────────────────────────────────────────${NC}\n"
+}
 
 # ════════════════════════════════════════════════
 # JSON-SAFE STRING HELPER
@@ -5803,16 +5805,254 @@ _ftp_interactive() {
     echo ""
 }
 
-_ftp_status() { _load_ftp_conf; echo ""; echo -e "${M}${B}  🦞 PicoClaw — FTP Status${N}"; echo -e "${D}  ─────────────────────────────────────────────${N}"; echo ""; if ! command -v vsftpd &>/dev/null; then echo -e "  ${R}✘ vsftpd is not installed${N}"; echo ""; return 0; fi; if systemctl is-active --quiet vsftpd 2>/dev/null; then local ftp_pid=""; ftp_pid=$(systemctl show vsftpd --property=MainPID --value 2>/dev/null) || true; local ftp_since=""; ftp_since=$(systemctl show vsftpd --property=ActiveEnterTimestamp --value 2>/dev/null) || true; echo -e "  Status:    ${G}● running${N}  PID ${ftp_pid}  since ${ftp_since}"; elif systemctl is-enabled --quiet vsftpd 2>/dev/null; then echo -e "  Status:    ${R}● stopped${N} (enabled — run: picoclaw ftp start)"; else echo -e "  Status:    ${D}○ disabled${N}"; fi; echo -e "  Username:  ${B}${FTP_USER}${N}"; echo -e "  Port:      ${B}${FTP_PORT}${N}"; echo -e "  Passive:   ${B}${FTP_PASV_MIN}-${FTP_PASV_MAX}${N}"; echo -e "  TLS:       $(if [[ "$FTP_TLS" == "true" ]]; then echo -e "${G}● enabled${N}"; else echo -e "${D}○ disabled${N}"; fi)"; echo -e "  Access:    ${R}Full filesystem (/)${N}"; echo ""; }
-_ftp_start() { echo ""; echo -e "  ${M}🦞${N} Starting FTP server..."; systemctl start vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server running"; else echo -e "  ${R}✘${N} Failed to start — check: systemctl status vsftpd"; fi; }
-_ftp_stop() { echo ""; echo -e "  ${M}🦞${N} Stopping FTP server..."; systemctl stop vsftpd 2>/dev/null || true; echo -e "  ${G}✔${N} FTP server stopped"; }
-_ftp_restart() { echo ""; echo -e "  ${M}🦞${N} Restarting FTP server..."; systemctl restart vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server running"; else echo -e "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd"; fi; }
-_ftp_password() { _load_ftp_conf; echo ""; echo -e "  ${B}Change FTP Password${N}"; echo -e "  ${D}User: ${FTP_USER}${N}"; echo ""; local NEW_PASS=""; while true; do echo -ne "  ${C}➜${N} New password (min 8 chars, hidden): "; read -rs NEW_PASS; echo ""; if [[ ${#NEW_PASS} -ge 8 ]]; then break; fi; echo -e "  ${Y}⚠ Password must be at least 8 characters${N}"; done; local CONFIRM_PASS=""; echo -ne "  ${C}➜${N} Confirm password: "; read -rs CONFIRM_PASS; echo ""; if [[ "$NEW_PASS" != "$CONFIRM_PASS" ]]; then echo -e "  ${R}✘ Passwords do not match — cancelled${N}"; return 0; fi; echo "${FTP_USER}:${NEW_PASS}" | chpasswd 2>/dev/null; if [[ $? -eq 0 ]]; then echo -e "  ${G}✔${N} Password changed for user '${FTP_USER}'"; else echo -e "  ${R}✘ Failed to change password${N}"; fi; }
-_ftp_port() { _load_ftp_conf; echo ""; echo -e "  ${B}Change FTP Port${N}"; echo -e "  ${D}Current port: ${FTP_PORT}${N}"; echo ""; local NEW_PORT=""; while true; do echo -ne "  ${C}➜${N} New port (1-65535): "; read -r NEW_PORT; if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && (( NEW_PORT >= 1 && NEW_PORT <= 65535 )); then break; fi; echo -e "  ${Y}⚠ Must be a number between 1 and 65535${N}"; done; if [[ "$NEW_PORT" == "$FTP_PORT" ]]; then echo -e "  ${Y}⚠ Same port — no change.${N}"; return 0; fi; if [[ -f /etc/vsftpd.conf ]]; then sed -i "s/^listen_port=.*/listen_port=${NEW_PORT}/" /etc/vsftpd.conf 2>/dev/null || true; fi; FTP_PORT="$NEW_PORT"; _save_ftp_conf; echo -e "  ${G}✔${N} FTP port changed to: ${B}${NEW_PORT}${N}"; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo ""; echo -ne "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-y}"; if [[ "${CONFIRM,,}" == "y" || "${CONFIRM,,}" == "yes" ]]; then systemctl restart vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server restarted on port ${NEW_PORT}"; else echo -e "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd"; fi; else echo -e "  ${D}Restart later with: picoclaw ftp restart${N}"; fi; fi; }
-_ftp_tls() { _load_ftp_conf; echo ""; if [[ "$FTP_TLS" == "true" ]]; then echo -e "  ${B}Disable TLS Encryption${N}"; echo -ne "  ${C}➜${N} Disable TLS? ${D}[y/N]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-n}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled — TLS remains enabled.${N}"; return 0; fi; if [[ -f /etc/vsftpd.conf ]]; then sed -i '/^ssl_enable=/s/.*/ssl_enable=NO/' /etc/vsftpd.conf 2>/dev/null || true; fi; FTP_TLS="false"; _save_ftp_conf; echo -e "  ${G}✔${N} TLS disabled"; else echo -e "  ${B}Enable TLS Encryption${N}"; if [[ ! -f /etc/ssl/private/vsftpd.pem ]]; then mkdir -p /etc/ssl/private; openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/ssl/private/vsftpd.key -out /etc/ssl/private/vsftpd.pem -subj "/C=US/ST=State/L=City/O=PicoClaw/OU=FTP/CN=$(hostname 2>/dev/null || echo 'picoclaw')" > /dev/null 2>&1 || true; chmod 600 /etc/ssl/private/vsftpd.key /etc/ssl/private/vsftpd.pem; fi; echo -ne "  ${C}➜${N} Enable TLS? ${D}[Y/n]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-y}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; if [[ -f /etc/vsftpd.conf ]]; then if grep -q "^ssl_enable=" /etc/vsftpd.conf 2>/dev/null; then sed -i '/^ssl_enable=/s/.*/ssl_enable=YES/' /etc/vsftpd.conf 2>/dev/null || true; else echo -e "\nssl_enable=YES\nrsa_cert_file=/etc/ssl/private/vsftpd.pem\nrsa_private_key_file=/etc/ssl/private/vsftpd.key\nssl_ciphers=HIGH\nrequire_ssl_reuse=NO" >> /etc/vsftpd.conf; fi; fi; FTP_TLS="true"; _save_ftp_conf; echo -e "  ${G}✔${N} TLS enabled"; fi; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo ""; echo -ne "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "; local DO_RESTART=""; read -r DO_RESTART; DO_RESTART="${DO_RESTART:-y}"; if [[ "${DO_RESTART,,}" == "y" || "${DO_RESTART,,}" == "yes" ]]; then systemctl restart vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server restarted"; else echo -e "  ${R}✘${N} Failed to restart"; fi; fi; fi; }
-_ftp_logs() { echo ""; echo -e "  ${M}🦞${N} FTP Server Logs"; echo -e "  ${D}Showing last 50 lines of /var/log/vsftpd.log${N}"; echo ""; if [[ -f /var/log/vsftpd.log ]]; then tail -50 /var/log/vsftpd.log; else echo -e "  ${D}No log file found${N}"; fi; }
-_ftp_disable() { echo ""; echo -ne "  ${C}➜${N} Disable FTP server? ${D}[y/N]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-n}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; systemctl stop vsftpd 2>/dev/null || true; systemctl disable vsftpd 2>/dev/null || true; _load_ftp_conf; FTP_ENABLED="false"; _save_ftp_conf; echo -e "  ${G}✔${N} FTP server disabled"; }
-_ftp_enable() { _load_ftp_conf; if ! command -v vsftpd &>/dev/null; then echo -e "  ${R}✘ vsftpd is not installed${N}"; return 0; fi; echo ""; echo -ne "  ${C}➜${N} Enable and start FTP server? ${D}[Y/n]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-y}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; systemctl enable vsftpd 2>/dev/null || true; systemctl start vsftpd 2>/dev/null || true; FTP_ENABLED="true"; _save_ftp_conf; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server enabled and running"; else echo -e "  ${R}✘${N} Failed to start"; fi; }
+_ftp_status() {
+  _load_ftp_conf
+  echo ""
+  echo -e "${M}${B}  🦞 PicoClaw — FTP Status${N}"
+  echo -e "${D}  ─────────────────────────────────────────────${N}"
+  echo ""
+  if ! command -v vsftpd &>/dev/null; then
+    echo -e "  ${R}✘ vsftpd is not installed${N}"
+    echo ""
+    return 0
+  fi
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    local ftp_pid=""
+    ftp_pid=$(systemctl show vsftpd --property=MainPID --value 2>/dev/null) || true
+    local ftp_since=""
+    ftp_since=$(systemctl show vsftpd --property=ActiveEnterTimestamp --value 2>/dev/null) || true
+    echo -e "  Status:    ${G}● running${N}  PID ${ftp_pid}  since ${ftp_since}"
+  elif systemctl is-enabled --quiet vsftpd 2>/dev/null; then
+    echo -e "  Status:    ${R}● stopped${N} (enabled — run: picoclaw ftp start)"
+  else
+    echo -e "  Status:    ${D}○ disabled${N}"
+  fi
+  echo -e "  Username:  ${B}${FTP_USER}${N}"
+  echo -e "  Port:      ${B}${FTP_PORT}${N}"
+  echo -e "  Passive:   ${B}${FTP_PASV_MIN}-${FTP_PASV_MAX}${N}"
+  echo -e "  TLS:       $(if [[ "$FTP_TLS" == "true" ]]; then echo -e "${G}● enabled${N}"; else echo -e "${D}○ disabled${N}"; fi)"
+  echo -e "  Access:    ${R}Full filesystem (/)${N}"
+  echo ""
+}
+_ftp_start() {
+  echo ""
+  echo -e "  ${M}🦞${N} Starting FTP server..."
+  systemctl start vsftpd 2>/dev/null || true
+  sleep 1
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo -e "  ${G}✔${N} FTP server running"
+  else
+    echo -e "  ${R}✘${N} Failed to start — check: systemctl status vsftpd"
+  fi
+}
+_ftp_stop() {
+  echo ""
+  echo -e "  ${M}🦞${N} Stopping FTP server..."
+  systemctl stop vsftpd 2>/dev/null || true
+  echo -e "  ${G}✔${N} FTP server stopped"
+}
+_ftp_restart() {
+  echo ""
+  echo -e "  ${M}🦞${N} Restarting FTP server..."
+  systemctl restart vsftpd 2>/dev/null || true
+  sleep 1
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo -e "  ${G}✔${N} FTP server running"
+  else
+    echo -e "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd"
+  fi
+}
+_ftp_password() {
+  _load_ftp_conf
+  echo ""
+  echo -e "  ${B}Change FTP Password${N}"
+  echo -e "  ${D}User: ${FTP_USER}${N}"
+  echo ""
+  local NEW_PASS=""
+  while true; do
+    echo -ne "  ${C}➜${N} New password (min 8 chars, hidden): "
+    read -rs NEW_PASS
+    echo ""
+    if [[ ${#NEW_PASS} -ge 8 ]]; then
+      break
+    fi
+    echo -e "  ${Y}⚠ Password must be at least 8 characters${N}"
+  done
+  local CONFIRM_PASS=""
+  echo -ne "  ${C}➜${N} Confirm password: "
+  read -rs CONFIRM_PASS
+  echo ""
+  if [[ "$NEW_PASS" != "$CONFIRM_PASS" ]]; then
+    echo -e "  ${R}✘ Passwords do not match — cancelled${N}"
+    return 0
+  fi
+  echo "${FTP_USER}:${NEW_PASS}" | chpasswd 2>/dev/null
+  if [[ $? -eq 0 ]]; then
+    echo -e "  ${G}✔${N} Password changed for user '${FTP_USER}'"
+  else
+    echo -e "  ${R}✘ Failed to change password${N}"
+  fi
+}
+_ftp_port() {
+  _load_ftp_conf
+  echo ""
+  echo -e "  ${B}Change FTP Port${N}"
+  echo -e "  ${D}Current port: ${FTP_PORT}${N}"
+  echo ""
+  local NEW_PORT=""
+  while true; do
+    echo -ne "  ${C}➜${N} New port (1-65535): "
+    read -r NEW_PORT
+    if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && (( NEW_PORT >= 1 && NEW_PORT <= 65535 )); then
+      break
+    fi
+    echo -e "  ${Y}⚠ Must be a number between 1 and 65535${N}"
+  done
+  if [[ "$NEW_PORT" == "$FTP_PORT" ]]; then
+    echo -e "  ${Y}⚠ Same port — no change.${N}"
+    return 0
+  fi
+  if [[ -f /etc/vsftpd.conf ]]; then
+    sed -i "s/^listen_port=.*/listen_port=${NEW_PORT}/" /etc/vsftpd.conf 2>/dev/null || true
+  fi
+  FTP_PORT="$NEW_PORT"
+  _save_ftp_conf
+  echo -e "  ${G}✔${N} FTP port changed to: ${B}${NEW_PORT}${N}"
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo ""
+    echo -ne "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "
+    local CONFIRM=""
+    read -r CONFIRM
+    CONFIRM="${CONFIRM:-y}"
+    if [[ "${CONFIRM,,}" == "y" || "${CONFIRM,,}" == "yes" ]]; then
+      systemctl restart vsftpd 2>/dev/null || true
+      sleep 1
+      if systemctl is-active --quiet vsftpd 2>/dev/null; then
+        echo -e "  ${G}✔${N} FTP server restarted on port ${NEW_PORT}"
+      else
+        echo -e "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd"
+      fi
+    else
+      echo -e "  ${D}Restart later with: picoclaw ftp restart${N}"
+    fi
+  fi
+}
+_ftp_tls() {
+  _load_ftp_conf
+  echo ""
+  if [[ "$FTP_TLS" == "true" ]]; then
+    echo -e "  ${B}Disable TLS Encryption${N}"
+    echo -ne "  ${C}➜${N} Disable TLS? ${D}[y/N]${N}: "
+    local CONFIRM=""
+    read -r CONFIRM
+    CONFIRM="${CONFIRM:-n}"
+    if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+      echo -e "  ${D}Cancelled — TLS remains enabled.${N}"
+      return 0
+    fi
+    if [[ -f /etc/vsftpd.conf ]]; then
+      sed -i '/^ssl_enable=/s/.*/ssl_enable=NO/' /etc/vsftpd.conf 2>/dev/null || true
+    fi
+    FTP_TLS="false"
+    _save_ftp_conf
+    echo -e "  ${G}✔${N} TLS disabled"
+  else
+    echo -e "  ${B}Enable TLS Encryption${N}"
+    if [[ ! -f /etc/ssl/private/vsftpd.pem ]]; then
+      mkdir -p /etc/ssl/private
+      openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/ssl/private/vsftpd.key -out /etc/ssl/private/vsftpd.pem -subj "/C=US/ST=State/L=City/O=PicoClaw/OU=FTP/CN=$(hostname 2>/dev/null || echo 'picoclaw')" > /dev/null 2>&1 || true
+      chmod 600 /etc/ssl/private/vsftpd.key /etc/ssl/private/vsftpd.pem
+    fi
+    echo -ne "  ${C}➜${N} Enable TLS? ${D}[Y/n]${N}: "
+    local CONFIRM=""
+    read -r CONFIRM
+    CONFIRM="${CONFIRM:-y}"
+    if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+      echo -e "  ${D}Cancelled.${N}"
+      return 0
+    fi
+    if [[ -f /etc/vsftpd.conf ]]; then
+      if grep -q "^ssl_enable=" /etc/vsftpd.conf 2>/dev/null; then
+        sed -i '/^ssl_enable=/s/.*/ssl_enable=YES/' /etc/vsftpd.conf 2>/dev/null || true
+      else
+        echo -e "\nssl_enable=YES\nrsa_cert_file=/etc/ssl/private/vsftpd.pem\nrsa_private_key_file=/etc/ssl/private/vsftpd.key\nssl_ciphers=HIGH\nrequire_ssl_reuse=NO" >> /etc/vsftpd.conf
+      fi
+    fi
+    FTP_TLS="true"
+    _save_ftp_conf
+    echo -e "  ${G}✔${N} TLS enabled"
+  fi
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo ""
+    echo -ne "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "
+    local DO_RESTART=""
+    read -r DO_RESTART
+    DO_RESTART="${DO_RESTART:-y}"
+    if [[ "${DO_RESTART,,}" == "y" || "${DO_RESTART,,}" == "yes" ]]; then
+      systemctl restart vsftpd 2>/dev/null || true
+      sleep 1
+      if systemctl is-active --quiet vsftpd 2>/dev/null; then
+        echo -e "  ${G}✔${N} FTP server restarted"
+      else
+        echo -e "  ${R}✘${N} Failed to restart"
+      fi
+    fi
+  fi
+}
+_ftp_logs() {
+  echo ""
+  echo -e "  ${M}🦞${N} FTP Server Logs"
+  echo -e "  ${D}Showing last 50 lines of /var/log/vsftpd.log${N}"
+  echo ""
+  if [[ -f /var/log/vsftpd.log ]]; then
+    tail -50 /var/log/vsftpd.log
+  else
+    echo -e "  ${D}No log file found${N}"
+  fi
+}
+_ftp_disable() {
+  echo ""
+  echo -ne "  ${C}➜${N} Disable FTP server? ${D}[y/N]${N}: "
+  local CONFIRM=""
+  read -r CONFIRM
+  CONFIRM="${CONFIRM:-n}"
+  if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+    echo -e "  ${D}Cancelled.${N}"
+    return 0
+  fi
+  systemctl stop vsftpd 2>/dev/null || true
+  systemctl disable vsftpd 2>/dev/null || true
+  _load_ftp_conf
+  FTP_ENABLED="false"
+  _save_ftp_conf
+  echo -e "  ${G}✔${N} FTP server disabled"
+}
+_ftp_enable() {
+  _load_ftp_conf
+  if ! command -v vsftpd &>/dev/null; then
+    echo -e "  ${R}✘ vsftpd is not installed${N}"
+    return 0
+  fi
+  echo ""
+  echo -ne "  ${C}➜${N} Enable and start FTP server? ${D}[Y/n]${N}: "
+  local CONFIRM=""
+  read -r CONFIRM
+  CONFIRM="${CONFIRM:-y}"
+  if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+    echo -e "  ${D}Cancelled.${N}"
+    return 0
+  fi
+  systemctl enable vsftpd 2>/dev/null || true
+  systemctl start vsftpd 2>/dev/null || true
+  FTP_ENABLED="true"
+  _save_ftp_conf
+  sleep 1
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo -e "  ${G}✔${N} FTP server enabled and running"
+  else
+    echo -e "  ${R}✘${N} Failed to start"
+  fi
+}
 
 # ═══════════════════════════════════════════════════════
 # WHATSAPP BRIDGE MANAGER — picoclaw whatsapp
@@ -5836,16 +6076,229 @@ cmd_whatsapp() {
     esac
 }
 
-_wa_interactive() { _load_wa_conf; echo ""; echo -e "${M}${B}  🦞 PicoClaw — WhatsApp Bridge Manager${N}"; echo -e "${D}  ─────────────────────────────────────────────${N}"; echo ""; if [[ ! -d "$WA_BRIDGE_DIR" ]]; then echo -e "  ${R}✘ WhatsApp bridge is not installed${N}"; echo ""; return 0; fi; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  Status:    ${G}● running${N}"; else echo -e "  Status:    ${R}● stopped${N}"; fi; if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then echo -e "  Account:   ${G}● linked${N}"; else echo -e "  Account:   ${R}● not linked${N}"; fi; echo -e "  Port:      ${B}${WA_BRIDGE_PORT}${N}"; echo ""; echo -e "    ${C}1${N}) Login (QR scan)"; echo -e "    ${C}2${N}) Start/Stop bridge"; echo -e "    ${C}3${N}) Restart bridge"; echo -e "    ${C}4${N}) Logout"; echo -e "    ${C}5${N}) View logs"; echo -e "    ${C}6${N}) Enable/Disable"; echo -e "    ${C}0${N}) Back"; echo ""; local MC=""; while true; do echo -ne "  ${C}➜${N} Choose (0-6): "; read -r MC; if [[ "$MC" =~ ^[0-6]$ ]]; then break; fi; echo -e "  ${Y}⚠ Invalid${N}"; done; case "$MC" in 0) return 0 ;; 1) _wa_login ;; 2) if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then _wa_stop; else _wa_start; fi ;; 3) _wa_restart ;; 4) _wa_logout ;; 5) _wa_logs ;; 6) local wa_cfg_en=""; if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then wa_cfg_en=$(jq -r '.channels.whatsapp.enabled // false' "$CFG" 2>/dev/null) || true; fi; if [[ "$wa_cfg_en" == "true" ]]; then _wa_disable; else _wa_enable; fi ;; esac; echo ""; }
-_wa_login() { _load_wa_conf; echo ""; if [[ ! -d "$WA_BRIDGE_DIR" || ! -f "${WA_BRIDGE_DIR}/dist/index.js" ]]; then echo -e "  ${R}✘ Bridge not installed or not compiled${N}"; return 0; fi; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 1; fi; echo -e "  ${M}🦞${N} Starting bridge for QR login..."; echo ""; cd "$WA_BRIDGE_DIR"; BRIDGE_PORT="$WA_BRIDGE_PORT" AUTH_DIR="$WA_BRIDGE_AUTH_DIR" node dist/index.js & local bp=$!; local wc=0 mw=120 ls=false; while (( wc < mw )); do if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then sleep 3; ls=true; break; fi; if ! kill -0 "$bp" 2>/dev/null; then break; fi; sleep 1; wc=$((wc+1)); done; if kill -0 "$bp" 2>/dev/null; then kill "$bp" 2>/dev/null || true; wait "$bp" 2>/dev/null || true; fi; cd /root; echo ""; if [[ "$ls" == "true" ]] || [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then echo -e "  ${G}✔${N} WhatsApp linked!"; systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 2; if systemctl is-active --quiet "$SVC" 2>/dev/null; then systemctl restart "$SVC" 2>/dev/null || true; fi; else echo -e "  ${Y}⚠${N} QR not scanned in time"; fi; echo ""; }
-_wa_logout() { _load_wa_conf; echo ""; echo -ne "  ${C}➜${N} Type ${R}LOGOUT${N} to confirm: "; local C=""; read -r C; if [[ "$C" != "LOGOUT" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; if [[ -d "$WA_BRIDGE_AUTH_DIR" ]]; then rm -rf "${WA_BRIDGE_AUTH_DIR:?}/"*; fi; echo -e "  ${G}✔${N} Logged out"; echo ""; }
-_wa_status() { _load_wa_conf; echo ""; echo -e "${M}${B}  🦞 WhatsApp Status${N}"; echo ""; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  Bridge: ${G}● running${N}"; else echo -e "  Bridge: ${R}● stopped${N}"; fi; if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then echo -e "  Account: ${G}● linked${N}"; else echo -e "  Account: ${R}● not linked${N}"; fi; echo -e "  Port: ${B}${WA_BRIDGE_PORT}${N}"; echo ""; }
-_wa_start() { echo ""; systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 2; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  ${G}✔${N} Bridge running"; else echo -e "  ${R}✘${N} Failed"; fi; }
-_wa_stop() { echo ""; systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; echo -e "  ${G}✔${N} Bridge stopped"; }
-_wa_restart() { echo ""; systemctl restart "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 2; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  ${G}✔${N} Bridge running"; else echo -e "  ${R}✘${N} Failed"; fi; }
-_wa_logs() { exec journalctl -u "$WA_BRIDGE_SVC" -f; }
-_wa_enable() { _load_wa_conf; if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then local T=""; T=$(mktemp); if jq '.channels.whatsapp.enabled = true' "$CFG" > "$T" 2>/dev/null; then mv "$T" "$CFG"; fi; fi; WA_ENABLED="true"; _save_wa_conf; systemctl enable "$WA_BRIDGE_SVC" 2>/dev/null || true; systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true; echo -e "  ${G}✔${N} WhatsApp enabled"; if systemctl is-active --quiet "$SVC" 2>/dev/null; then systemctl restart "$SVC" 2>/dev/null || true; fi; }
-_wa_disable() { _load_wa_conf; if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then local T=""; T=$(mktemp); if jq '.channels.whatsapp.enabled = false' "$CFG" > "$T" 2>/dev/null; then mv "$T" "$CFG"; fi; fi; WA_ENABLED="false"; _save_wa_conf; systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; systemctl disable "$WA_BRIDGE_SVC" 2>/dev/null || true; echo -e "  ${G}✔${N} WhatsApp disabled"; if systemctl is-active --quiet "$SVC" 2>/dev/null; then systemctl restart "$SVC" 2>/dev/null || true; fi; }
+_wa_interactive() {
+  _load_wa_conf
+  echo ""
+  echo -e "${M}${B}  🦞 PicoClaw — WhatsApp Bridge Manager${N}"
+  echo -e "${D}  ─────────────────────────────────────────────${N}"
+  echo ""
+  if [[ ! -d "$WA_BRIDGE_DIR" ]]; then
+    echo -e "  ${R}✘ WhatsApp bridge is not installed${N}"
+    echo ""
+    return 0
+  fi
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    echo -e "  Status:    ${G}● running${N}"
+  else
+    echo -e "  Status:    ${R}● stopped${N}"
+  fi
+  if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+    echo -e "  Account:   ${G}● linked${N}"
+  else
+    echo -e "  Account:   ${R}● not linked${N}"
+  fi
+  echo -e "  Port:      ${B}${WA_BRIDGE_PORT}${N}"
+  echo ""
+  echo -e "    ${C}1${N}) Login (QR scan)"
+  echo -e "    ${C}2${N}) Start/Stop bridge"
+  echo -e "    ${C}3${N}) Restart bridge"
+  echo -e "    ${C}4${N}) Logout"
+  echo -e "    ${C}5${N}) View logs"
+  echo -e "    ${C}6${N}) Enable/Disable"
+  echo -e "    ${C}0${N}) Back"
+  echo ""
+  local MC=""
+  while true; do
+    echo -ne "  ${C}➜${N} Choose (0-6): "
+    read -r MC
+    if [[ "$MC" =~ ^[0-6]$ ]]; then
+      break
+    fi
+    echo -e "  ${Y}⚠ Invalid${N}"
+  done
+  case "$MC" in
+    0)
+      return 0
+      ;;
+    1)
+      _wa_login
+      ;;
+    2)
+      if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+        _wa_stop
+      else
+        _wa_start
+      fi
+      ;;
+    3)
+      _wa_restart
+      ;;
+    4)
+      _wa_logout
+      ;;
+    5)
+      _wa_logs
+      ;;
+    6)
+      local wa_cfg_en=""
+      if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
+        wa_cfg_en=$(jq -r '.channels.whatsapp.enabled // false' "$CFG" 2>/dev/null) || true
+      fi
+      if [[ "$wa_cfg_en" == "true" ]]; then
+        _wa_disable
+      else
+        _wa_enable
+      fi
+      ;;
+  esac
+  echo ""
+}
+_wa_login() {
+  _load_wa_conf
+  echo ""
+  if [[ ! -d "$WA_BRIDGE_DIR" || ! -f "${WA_BRIDGE_DIR}/dist/index.js" ]]; then
+    echo -e "  ${R}✘ Bridge not installed or not compiled${N}"
+    return 0
+  fi
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+    sleep 1
+  fi
+  echo -e "  ${M}🦞${N} Starting bridge for QR login..."
+  echo ""
+  cd "$WA_BRIDGE_DIR"
+  BRIDGE_PORT="$WA_BRIDGE_PORT" AUTH_DIR="$WA_BRIDGE_AUTH_DIR" node dist/index.js &
+  local bp=$!
+  local wc=0 mw=120 ls=false
+  while (( wc < mw )); do
+    if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+      sleep 3
+      ls=true
+      break
+    fi
+    if ! kill -0 "$bp" 2>/dev/null; then
+      break
+    fi
+    sleep 1
+    wc=$((wc+1))
+  done
+  if kill -0 "$bp" 2>/dev/null; then
+    kill "$bp" 2>/dev/null || true
+    wait "$bp" 2>/dev/null || true
+  fi
+  cd /root
+  echo ""
+  if [[ "$ls" == "true" ]] || [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+    echo -e "  ${G}✔${N} WhatsApp linked!"
+    systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
+    sleep 2
+    if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+      systemctl restart "$SVC" 2>/dev/null || true
+    fi
+  else
+    echo -e "  ${Y}⚠${N} QR not scanned in time"
+  fi
+  echo ""
+}
+_wa_logout() {
+  _load_wa_conf
+  echo ""
+  echo -ne "  ${C}➜${N} Type ${R}LOGOUT${N} to confirm: "
+  local C=""
+  read -r C
+  if [[ "$C" != "LOGOUT" ]]; then
+    echo -e "  ${D}Cancelled.${N}"
+    return 0
+  fi
+  systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+  if [[ -d "$WA_BRIDGE_AUTH_DIR" ]]; then
+    rm -rf "${WA_BRIDGE_AUTH_DIR:?}/"*
+  fi
+  echo -e "  ${G}✔${N} Logged out"
+  echo ""
+}
+_wa_status() {
+  _load_wa_conf
+  echo ""
+  echo -e "${M}${B}  🦞 WhatsApp Status${N}"
+  echo ""
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    echo -e "  Bridge: ${G}● running${N}"
+  else
+    echo -e "  Bridge: ${R}● stopped${N}"
+  fi
+  if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+    echo -e "  Account: ${G}● linked${N}"
+  else
+    echo -e "  Account: ${R}● not linked${N}"
+  fi
+  echo -e "  Port: ${B}${WA_BRIDGE_PORT}${N}"
+  echo ""
+}
+_wa_start() {
+  echo ""
+  systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
+  sleep 2
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    echo -e "  ${G}✔${N} Bridge running"
+  else
+    echo -e "  ${R}✘${N} Failed"
+  fi
+}
+_wa_stop() {
+  echo ""
+  systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+  echo -e "  ${G}✔${N} Bridge stopped"
+}
+_wa_restart() {
+  echo ""
+  systemctl restart "$WA_BRIDGE_SVC" 2>/dev/null || true
+  sleep 2
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    echo -e "  ${G}✔${N} Bridge running"
+  else
+    echo -e "  ${R}✘${N} Failed"
+  fi
+}
+_wa_logs() {
+  exec journalctl -u "$WA_BRIDGE_SVC" -f
+}
+_wa_enable() {
+  _load_wa_conf
+  if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
+    local T=""
+    T=$(mktemp)
+    if jq '.channels.whatsapp.enabled = true' "$CFG" > "$T" 2>/dev/null; then
+      mv "$T" "$CFG"
+    fi
+  fi
+  WA_ENABLED="true"
+  _save_wa_conf
+  systemctl enable "$WA_BRIDGE_SVC" 2>/dev/null || true
+  systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
+  echo -e "  ${G}✔${N} WhatsApp enabled"
+  if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+    systemctl restart "$SVC" 2>/dev/null || true
+  fi
+}
+_wa_disable() {
+  _load_wa_conf
+  if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
+    local T=""
+    T=$(mktemp)
+    if jq '.channels.whatsapp.enabled = false' "$CFG" > "$T" 2>/dev/null; then
+      mv "$T" "$CFG"
+    fi
+  fi
+  WA_ENABLED="false"
+  _save_wa_conf
+  systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+  systemctl disable "$WA_BRIDGE_SVC" 2>/dev/null || true
+  echo -e "  ${G}✔${N} WhatsApp disabled"
+  if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+    systemctl restart "$SVC" 2>/dev/null || true
+  fi
+}
 
 # ═══════════════════════════════════════════════════════
 # OLLAMA MANAGER — picoclaw ollama
