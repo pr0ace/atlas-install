@@ -6387,7 +6387,7 @@ if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then
     echo -e "\033[0;32m  Perf:   ● optimized (BBR + sysctl + zram + I/O + DNS)\033[0m"
 fi
 if [[ -f /root/.picoclaw/atlas.json ]] && command -v jq &>/dev/null; then
-    local ac=""
+    ac=""
     ac=$(jq -r '.skill_count // 0' /root/.picoclaw/atlas.json 2>/dev/null) || ac="?"
     echo -e "\033[0;32m  Atlas:  ● ${ac} skill(s) installed\033[0m"
 fi
@@ -6396,7 +6396,7 @@ if command -v vsftpd &>/dev/null && systemctl is-active --quiet vsftpd 2>/dev/nu
 fi
 if command -v ollama &>/dev/null; then
     if systemctl is-active --quiet ollama 2>/dev/null; then
-        local ol_model=""
+        ol_model=""
         if [[ -f /root/.picoclaw/ollama.conf ]]; then
             ol_model=$(grep "^OLLAMA_CUSTOM_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d'"' -f2) || ol_model=""
             if [[ -z "$ol_model" ]]; then
