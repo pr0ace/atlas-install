@@ -1,0 +1,38 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Bash syntax check
+        run: bash -n atlas-install.sh
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: shellcheck -x -s bash -e SC2034,SC1091,SC2154 atlas-install.sh
+
+      - name: Validate VERSION file
+        run: |
+          if [ ! -f VERSION ]; then
+            echo "ERROR: VERSION file not found"
+            exit 1
+          fi
+          VERSION_CONTENT=$(cat VERSION)
+          if ! echo "$VERSION_CONTENT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: VERSION file does not match semver pattern (^v[0-9]+\.[0-9]+\.[0-9]+$)"
+            echo "Found: $VERSION_CONTENT"
+            exit 1
+          fi
+          echo "VERSION file is valid: $VERSION_CONTENT"
