@@ -1419,7 +1419,9 @@ TMEOF
 
     local disabled_count=0
     for svc in "${disable_services[@]}"; do
-        if systemctl list-unit-files "$svc" 2>/dev/null | grep -qE "enabled|static"; then
+        local state
+        state=$(systemctl is-enabled "$svc" 2>/dev/null) || state="disabled"
+        if [[ "$state" == "enabled" || "$state" == "static" ]]; then
             systemctl disable --now "$svc" 2>/dev/null || true
             systemctl mask "$svc" 2>/dev/null || true
             disabled_count=$((disabled_count + 1))
@@ -1433,7 +1435,9 @@ TMEOF
     )
 
     for tmr in "${disable_timers[@]}"; do
-        if systemctl list-unit-files "$tmr" 2>/dev/null | grep -qE "enabled|static"; then
+        local state
+        state=$(systemctl is-enabled "$tmr" 2>/dev/null) || state="disabled"
+        if [[ "$state" == "enabled" || "$state" == "static" ]]; then
             systemctl disable --now "$tmr" 2>/dev/null || true
             disabled_count=$((disabled_count + 1))
         fi
@@ -1968,8 +1972,15 @@ _atlas_install_via_git() {
                 | sed 's/^[[:space:]]*//' \
                 | head -c 80) || true
 
-            local file_count
-            file_count=$(find "$target_dir" -type f 2>/dev/null | wc -l) || file_count="?"
+            local file_count=0
+            shopt -s nullglob dotglob
+            local -a files=("$target_dir"/*)
+            for f in "${files[@]}"; do
+                if [[ -f "$f" ]]; then
+                    file_count=$((file_count + 1))
+                fi
+            done
+            shopt -u nullglob dotglob
 
             success "  ${s_name} (${s_cat}): ${file_count} files${DIM}$(if [[ -n "$desc" ]]; then echo " — ${desc}"; fi)${NC}"
             installed_count=$((installed_count + 1))
@@ -2013,8 +2024,16 @@ _atlas_write_metadata() {
 
         local scat="unknown"
         if [[ -f "${skill_dir}.atlas-origin" ]]; then
-            scat=$(grep -E "^category:" "${skill_dir}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//')  || scat="unknown"
+            if [[ -f "${skill_dir}.atlas-origin" ]]; then
+                while IFS= read -r line; do
+                    if [[ "$line" == category:* ]]; then
+                        scat="${line#category:}"
+                        scat="${scat#"${scat%%[![:space:]]*}"}"
+                        break
+                    fi
+                done < "${skill_dir}.atlas-origin"
+            fi
+            [[ -z "$scat" ]] && scat="unknown"
             scat="${scat//[[:space:]]/}"
         fi
 
@@ -3925,8 +3944,7 @@ cmd_status() {
         for ch in telegram discord whatsapp feishu maixcam; do
             local en=""
             en=$(jq -r ".channels.${ch}.enabled // false" "$CFG" 2>/dev/null) || true
-            local label=""
-            label=$(echo "$ch" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+            local label="${ch^}"
             if [[ "$en" == "true" ]]; then
                 local af=""
                 af=$(jq -r ".channels.${ch}.allow_from | if length > 0 then join(\", \") else \"any\" end" "$CFG" 2>/dev/null) || af="?"
@@ -5404,9 +5422,14 @@ _atlas_status() {
                 fi
                 local sc="?"
                 if [[ -f "${sd}.atlas-origin" ]]; then
-                    sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                        | sed 's/^category:[[:space:]]*//')  || sc="?"
-                    sc="${sc//[[:space:]]/}"
+                    while IFS= read -r line; do
+                        if [[ "$line" == category:* ]]; then
+                            sc="${line#category:}"
+                            sc="${sc#"${sc%%[![:space:]]*}"}"
+                            sc="${sc//[[:space:]]/}"
+                            break
+                        fi
+                    done < "${sd}.atlas-origin"
                 fi
                 printf "    ${G}●${N} %-30s ${D}v%-8s %s${N}\n" "$sn" "$sv" "$sc"
             fi
@@ -5458,12 +5481,24 @@ _atlas_list() {
         fi
         local sc="?"
         if [[ -f "${sd}.atlas-origin" ]]; then
-            sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//')  || sc="?"
-            sc="${sc//[[:space:]]/}"
+            while IFS= read -r line; do
+                if [[ "$line" == category:* ]]; then
+                    sc="${line#category:}"
+                    sc="${sc#"${sc%%[![:space:]]*}"}"
+                    sc="${sc//[[:space:]]/}"
+                    break
+                fi
+            done < "${sd}.atlas-origin"
         fi
-        local fc=""
-        fc=$(find "$sd" -type f 2>/dev/null | wc -l) || fc="?"
+        local fc=0
+        shopt -s nullglob dotglob
+        local -a files=("$sd"/*)
+        for f in "${files[@]}"; do
+            if [[ -f "$f" ]]; then
+                fc=$((fc + 1))
+            fi
+        done
+        shopt -u nullglob dotglob
 
         printf "    ${C}%-4s${N} %-30s %-10s %-12s %-6s\n" "$count" "$sn" "$sv" "$sc" "$fc"
     done
@@ -5641,8 +5676,15 @@ _atlas_update_via_git() {
             cp -a "${skill_dir}"* "$target_dir/" 2>/dev/null || true
             cp -a "${skill_dir}".* "$target_dir/" 2>/dev/null || true
 
-            local fc=""
-            fc=$(find "$target_dir" -type f 2>/dev/null | wc -l) || fc="?"
+            local fc=0
+            shopt -s nullglob dotglob
+            local -a files=("$target_dir"/*)
+            for f in "${files[@]}"; do
+                if [[ -f "$f" ]]; then
+                    fc=$((fc + 1))
+                fi
+            done
+            shopt -u nullglob dotglob
 
             if [[ "$is_new" == "true" ]]; then
                 echo -e "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
@@ -5681,9 +5723,14 @@ _atlas_update_metadata() {
         fi
         local sc="unknown"
         if [[ -f "${sd}.atlas-origin" ]]; then
-            sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//')  || sc="unknown"
-            sc="${sc//[[:space:]]/}"
+            while IFS= read -r line; do
+                if [[ "$line" == category:* ]]; then
+                    sc="${line#category:}"
+                    sc="${sc#"${sc%%[![:space:]]*}"}"
+                    sc="${sc//[[:space:]]/}"
+                    break
+                fi
+            done < "${sd}.atlas-origin"
         fi
         if [[ "$first" == "true" ]]; then first=false; else skills_json+=","; fi
         skills_json+="{\"name\":\"$(_json_escape "$sn")\",\"category\":\"$(_json_escape "$sc")\",\"version\":\"$(_json_escape "$sv")\",\"path\":\"$(_json_escape "${ATLAS_SKILLS}/${sn}")\"}"
@@ -7245,8 +7292,15 @@ verify() {
                             sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
                     sv="${sv//[[:space:]]/}"
                         fi
-                        local fc
-                        fc=$(find "$sd" -type f 2>/dev/null | wc -l) || fc="?"
+                        local fc=0
+                        shopt -s nullglob dotglob
+                        local -a files=("$sd"/*)
+                        for f in "${files[@]}"; do
+                            if [[ -f "$f" ]]; then
+                                fc=$((fc + 1))
+                            fi
+                        done
+                        shopt -u nullglob dotglob
                         success "  Atlas skill: ${sn} (v${sv}, ${fc} files)"
                     fi
                 done
