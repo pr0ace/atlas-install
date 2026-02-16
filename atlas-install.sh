@@ -237,6 +237,17 @@ json_escape() {
 # ════════════════════════════════════════════════
 ask() {
     local prompt="$1" var_name="$2" default="${3:-}" secret="${4:-false}"
+
+    local -n existing_value="$var_name" 2>/dev/null || true
+    if [[ -n "${existing_value:-}" ]]; then
+        if [[ "$secret" == "true" ]]; then
+            printf "  ${AR} ${prompt}: ${GREEN}[from config]${NC}\n"
+        else
+            printf "  ${AR} ${prompt}: ${GREEN}${existing_value}${NC} ${DIM}[from config]${NC}\n"
+        fi
+        return 0
+    fi
+
     if [[ -n "$default" && "$secret" != "true" ]]; then
         prompt="${prompt} ${DIM}[${default}]${NC}"
     fi
@@ -256,6 +267,23 @@ ask() {
 
 ask_yn() {
     local prompt="$1" default="${2:-y}"
+
+    local var_name_upper="${prompt// /_}"
+    var_name_upper="${var_name_upper//[^a-zA-Z0-9_]/}"
+    var_name_upper="${var_name_upper^^}"
+
+    local -n existing_bool="${var_name_upper}" 2>/dev/null || true
+    if [[ -n "${existing_bool:-}" ]]; then
+        local display_val="${existing_bool,,}"
+        if [[ "$display_val" == "true" || "$display_val" == "y" || "$display_val" == "yes" ]]; then
+            printf "  ${AR} ${prompt}: ${GREEN}yes${NC} ${DIM}[from config]${NC}\n"
+            return 0
+        else
+            printf "  ${AR} ${prompt}: ${GREEN}no${NC} ${DIM}[from config]${NC}\n"
+            return 1
+        fi
+    fi
+
     if [[ "$default" == "y" ]]; then
         prompt="${prompt} ${DIM}[Y/n]${NC}"
     else
@@ -284,6 +312,79 @@ ask_menu() {
         fi
         warn "Invalid option '${choice}' — please enter a number between ${min} and ${max}"
     done
+}
+
+# ════════════════════════════════════════════════
+# USAGE — show help text
+# ════════════════════════════════════════════════
+show_usage() {
+  printf '%s\n' "Atlas Installer — Full-featured PicoClaw Gateway Setup"
+  printf '%s\n' ""
+  printf '%s\n' "Usage:"
+  printf '%s\n' "  bash atlas-install.sh                    # Interactive wizard"
+  printf '%s\n' "  bash atlas-install.sh --config <yaml>    # Non-interactive install"
+  printf '%s\n' "  bash atlas-install.sh --help             # Show this help"
+  printf '%s\n' ""
+  printf '%s\n' "Options:"
+  printf '%s\n' "  --config <file>    Path to YAML config file for non-interactive install"
+  printf '%s\n' "  --help             Display this help message"
+  printf '%s\n' ""
+  printf '%s\n' "Config file format (YAML):"
+  printf '%s\n' "  install_from: binary              # or 'source'"
+  printf '%s\n' "  setup_performance: true"
+  printf '%s\n' "  llm_provider: openrouter"
+  printf '%s\n' "  llm_api_key: sk-or-v1-..."
+  printf '%s\n' "  llm_model: anthropic/claude-sonnet-4.5"
+  printf '%s\n' "  max_tokens: 8192"
+  printf '%s\n' "  temperature: 0.7"
+  printf '%s\n' "  tg_enabled: true"
+  printf '%s\n' "  tg_token: 123456:ABC..."
+  printf '%s\n' "  tg_user_id: 5323045369"
+  printf '%s\n' "  # ... (see documentation for full list)"
+  printf '%s\n' ""
+  exit 0
+}
+
+# ════════════════════════════════════════════════
+# YAML PARSER — simple key: value extraction
+# ════════════════════════════════════════════════
+parse_config() {
+  local config_file="$1"
+
+  if [[ ! -f "$config_file" ]]; then
+    printf '%s\n' "${RED}✘ Config file not found: ${config_file}${NC}" >&2
+    exit 1
+  fi
+
+  info "Loading config from: ${config_file}"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%\#*}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+
+    if [[ -z "$line" ]]; then
+      continue
+    fi
+
+    if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)$ ]]; then
+      local key="${BASH_REMATCH[1]}"
+      local value="${BASH_REMATCH[2]}"
+
+      value="${value#"${value%%[![:space:]]*}"}"
+      value="${value%"${value##*[![:space:]]}"}"
+
+      if [[ "$value" =~ ^[\"\'](.*)[\"\']$ ]]; then
+        value="${BASH_REMATCH[1]}"
+      fi
+
+      local var_name="${key^^}"
+
+      printf -v "$var_name" '%s' "$value"
+    fi
+  done < "$config_file"
+
+  success "Config loaded"
 }
 
 # ════════════════════════════════════════════════
@@ -7490,6 +7591,33 @@ REBOOTEOF
 # MAIN
 # ════════════════════════════════════════════════
 main() {
+    local config_file=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --help|-h)
+                show_usage
+                ;;
+            --config)
+                if [[ -z "${2:-}" ]]; then
+                    printf '%s\n' "${RED}✘ --config requires a file path${NC}" >&2
+                    exit 1
+                fi
+                config_file="$2"
+                shift 2
+                ;;
+            *)
+                printf '%s\n' "${RED}✘ Unknown option: $1${NC}" >&2
+                printf '%s\n' "Run 'bash atlas-install.sh --help' for usage" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -n "$config_file" ]]; then
+        parse_config "$config_file"
+    fi
+
     banner
     preflight
     resolve_picoclaw_latest
