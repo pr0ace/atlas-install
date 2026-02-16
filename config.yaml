@@ -55,94 +55,94 @@ llm:
 # --- Model reference (pick one and paste into llm.model above) ---
 #
 # OpenRouter models:
-#   "openrouter/quasar-alpha"                      (recommended)
-#   "google/gemini-2.5-pro-preview"
-#   "google/gemini-2.5-flash-preview"
-#   "deepseek/deepseek-chat-v3-0324"
-#   "qwen/qwen3-235b-a22b"
-#   "qwen/qwen3-32b"
-#   "qwen/qwen3-30b-a3b"
-#   "microsoft/phi-4-reasoning-plus"
+#   "anthropic/claude-sonnet-4.5"                  (recommended)
+#   "anthropic/claude-opus-4.6"
+#   "anthropic/claude-opus-4.5"
+#   "anthropic/claude-sonnet-4"
+#   "openai/gpt-5.2"
+#   "openai/gpt-5.1"
+#   "openai/gpt-5"
+#   "openai/gpt-5-mini"
+#   "google/gemini-3-pro-preview"
+#   "google/gemini-3-flash-preview"
+#   "google/gemini-2.5-flash"
+#   "google/gemini-2.5-pro"
 #   "deepseek/deepseek-r1"
+#   "deepseek/deepseek-v3-0324"
 #   "meta-llama/llama-4-maverick"
-#   "meta-llama/llama-4-scout"
-#   "google/gemma-3-27b-it"
-#   "mistralai/mistral-small-3.2-24b-instruct"
-#   "microsoft/mai-ds-r1"
-#   "moonshotai/kimi-k2"
-#   "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+#   "qwen/qwen3-235b-a22b"
 #
 # Anthropic (via OpenRouter):
-#   "anthropic/claude-sonnet-4"                    (recommended)
+#   "anthropic/claude-sonnet-4.5"                  (recommended)
+#   "anthropic/claude-opus-4.6"
+#   "anthropic/claude-opus-4.5"
+#   "anthropic/claude-opus-4.1"
 #   "anthropic/claude-opus-4"
-#   "anthropic/claude-3.7-sonnet"
-#   "anthropic/claude-3.5-haiku"
-#   "anthropic/claude-3.5-sonnet"
-#   "anthropic/claude-3-haiku"
-#   "anthropic/claude-3-opus"
+#   "anthropic/claude-sonnet-4"
+#   "anthropic/claude-haiku-4.5"
 #
 # Zhipu models:
-#   "glm-4-plus"                                   (recommended)
-#   "glm-4-long"
-#   "glm-4-air"
-#   "glm-4-airx"
-#   "glm-4-flash"
-#   "glm-4-flashx"
-#   "glm-4"
-#   "glm-4v"
-#   "glm-4v-plus"
-#   "glm-zero-preview"
-#   "codegeex-4"
-#   "charglm-4"
-#   "emohaa"
-#   "glm-4-0520"
-#   "glm-4-alltools"
+#   "glm-5"                                        (recommended)
+#   "glm-4.7"
+#   "glm-4.7-flashx"
+#   "glm-4.7-flash"
+#   "glm-4.6"
+#   "glm-4.5"
+#   "glm-4.5-x"
+#   "glm-4.5-air"
+#   "glm-4.5-airx"
+#   "glm-4.5-flash"
+#   "glm-4-32b-0414-128k"
+#   "glm-4.6v"
+#   "glm-4.6v-flashx"
+#   "glm-4.5v"
+#   "glm-4.6v-flash"
 #
 # OpenAI models:
-#   "gpt-4.1"                                     (recommended)
+#   "gpt-5.2"                                      (recommended)
+#   "gpt-5.1"
+#   "gpt-5"
+#   "gpt-5-mini"
+#   "gpt-5-nano"
+#   "gpt-4.1"
 #   "gpt-4.1-mini"
 #   "gpt-4.1-nano"
-#   "o4-mini"
 #   "o3"
-#   "o3-mini"
+#   "o4-mini"
 #   "gpt-4o"
-#   "gpt-4o-mini"
-#   "gpt-4-turbo"
-#   "gpt-4"
-#   "gpt-3.5-turbo"
 #
 # Gemini models:
-#   "gemini-2.5-pro"                               (recommended)
-#   "gemini-2.5-flash"
+#   "gemini-2.5-flash"                             (recommended)
+#   "gemini-3-pro-preview"
+#   "gemini-3-flash-preview"
+#   "gemini-2.5-pro"
+#   "gemini-2.5-flash-lite"
 #   "gemini-2.0-flash"
-#   "gemini-2.0-flash-lite"
-#   "gemini-1.5-pro"
-#   "gemini-1.5-flash"
 #
 # Groq models:
-#   "meta-llama/llama-4-scout-17b-16e-instruct"   (recommended)
-#   "qwen/qwen3-32b"
-#   "deepseek-r1-distill-llama-70b"
-#   "llama-3.3-70b-versatile"
+#   "llama-3.3-70b-versatile"                      (recommended)
 #   "llama-3.1-8b-instant"
-#   "llama-guard-3-8b"
+#   "openai/gpt-oss-120b"
+#   "openai/gpt-oss-20b"
 #   "meta-llama/llama-4-maverick-17b-128e-instruct"
-#   "compound-beta"
+#   "meta-llama/llama-4-scout-17b-16e-instruct"
+#   "qwen/qwen3-32b"
+#   "moonshotai/kimi-k2-instruct-0905"
 #
 # Ollama models (local):
-#   "qwen3:4b"          2.5GB  (recommended)
-#   "phi4-mini"          3.3GB
-#   "nanbeige4.1:3b"    2.0GB
-#   "gemma3:4b"          3.3GB
-#   "qwen3:1.7b"        1.0GB
-#   "smollm3:3b"        2.0GB
-#   "lfm2.5:1.2b"       0.8GB
-#   "qwen3:0.6b"        0.4GB
-#   "deepseek-r1:1.5b"  1.0GB
-#   "gemma3:1b"          0.8GB
-#   "llama3.2:3b"       2.0GB
-#   "mistral:7b"        4.1GB  (needs 8GB+ RAM)
-#   "qwen3:8b"          4.7GB  (needs 8GB+ RAM)
+#   "qwen3:4b"          2.5GB — best all-round intelligence, dual-mode, 100+ languages  (recommended)
+#   "phi4-mini"         3.3GB — best tool calling + agent restraint, stable English
+#   "nanbeige4.1:3b"    2.0GB — NEW Feb 2026, rivals 32B models, unified generalist
+#   "gemma3:4b"         3.3GB — multimodal (understands images), strong general
+#   "qwen3:1.7b"        1.0GB — ultra-light, good basics, 100+ languages
+#   "smollm3:3b"        2.0GB — HuggingFace, reasoning + tool calling + multilingual
+#   "lfm2.5:1.2b"       0.8GB — fastest inference (1.5s CPU), hybrid architecture
+#   "qwen3:0.6b"        0.4GB — 600M params, impossibly good tool calling for size
+#   "deepseek-r1:1.5b"  1.0GB — reasoning specialist, math focus
+#   "gemma3:1b"         0.8GB — Google tiny, basic tasks
+#   "llama3.2:3b"       2.0GB — Meta, solid instruction following
+#   "mistral:7b"        4.1GB — classic workhorse (needs 8GB+ RAM, tight on 6GB)
+#   "qwen3:8b"          4.7GB — most intelligent 8B (needs 8GB+ RAM, tight on 6GB)
 
 # --------------------------------------------------------------------------
 # Ollama (Local LLM)
