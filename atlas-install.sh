@@ -87,6 +87,106 @@ OLLAMA_PORT="11434"
 OLLAMA_API_BASE="http://127.0.0.1:11434/v1"
 
 # ════════════════════════════════════════════════
+# WIZARD MODEL LISTS
+# ════════════════════════════════════════════════
+WIZARD_MODELS_OPENROUTER=(
+  "anthropic/claude-sonnet-4.5"    "latest Sonnet, best coding+agents"
+  "anthropic/claude-opus-4.6"      "most powerful, complex challenges"
+  "anthropic/claude-opus-4.5"      "strong all-rounder"
+  "anthropic/claude-sonnet-4"      "balanced price/performance"
+  "openai/gpt-5.2"                 "OpenAI flagship, coding+agentic"
+  "openai/gpt-5.1"                 "configurable reasoning effort"
+  "openai/gpt-5"                   "previous gen reasoning"
+  "openai/gpt-5-mini"              "fast, cost-efficient GPT-5"
+  "google/gemini-3-pro-preview"    "Google most intelligent"
+  "google/gemini-3-flash-preview"  "Google fast+balanced"
+  "google/gemini-2.5-flash"        "Google best price/perf"
+  "google/gemini-2.5-pro"          "Google advanced thinking"
+  "deepseek/deepseek-r1"           "reasoning, open-weight"
+  "deepseek/deepseek-v3-0324"      "fast general purpose"
+  "meta-llama/llama-4-maverick"    "Meta latest MoE"
+  "qwen/qwen3-235b-a22b"           "Alibaba frontier"
+)
+
+WIZARD_MODELS_ZHIPU=(
+  "glm-5"                  "744B MoE (40B active), flagship, agentic engineering"
+  "glm-4.7"               "355B MoE (32B active), coding+reasoning+agents"
+  "glm-4.7-flashx"        "fast+cheap, extended FlashX"
+  "glm-4.7-flash"         "30B MoE (3B active), free tier"
+  "glm-4.6"              "357B, 200K context, agentic+coding"
+  "glm-4.5"              "355B MoE, reasoning+agents"
+  "glm-4.5-x"            "extended context GLM-4.5"
+  "glm-4.5-air"          "106B MoE (12B active), balanced cost/perf"
+  "glm-4.5-airx"         "extended context Air"
+  "glm-4.5-flash"        "free tier, fast"
+  "glm-4-32b-0414-128k"  "open-weight 32B, 128K context"
+  "glm-4.6v"             "106B vision, 128K ctx, native tool use"
+  "glm-4.6v-flashx"      "fast+cheap vision"
+  "glm-4.5v"             "vision multimodal"
+  "glm-4.6v-flash"       "9B vision, free tier"
+)
+
+WIZARD_MODELS_OPENROUTER_ANTHROPIC=(
+  "anthropic/claude-sonnet-4.5"     "latest Sonnet, best coding+agents"
+  "anthropic/claude-opus-4.6"       "most powerful, complex challenges"
+  "anthropic/claude-opus-4.5"       "strong all-rounder"
+  "anthropic/claude-opus-4.1"       "capable reasoning"
+  "anthropic/claude-opus-4"         "first Opus 4"
+  "anthropic/claude-sonnet-4"       "balanced, widely used"
+  "anthropic/claude-haiku-4.5"      "fastest, cheapest"
+)
+
+WIZARD_MODELS_OPENAI=(
+  "gpt-5.2"           "flagship, coding+agentic"
+  "gpt-5.1"           "configurable reasoning effort"
+  "gpt-5"             "previous gen intelligent reasoning"
+  "gpt-5-mini"        "fast, cost-efficient"
+  "gpt-5-nano"        "fastest, cheapest GPT-5"
+  "gpt-4.1"           "smartest non-reasoning"
+  "gpt-4.1-mini"      "smaller, faster GPT-4.1"
+  "gpt-4.1-nano"      "fastest GPT-4.1"
+  "o3"                "reasoning, complex tasks"
+  "o4-mini"            "fast cost-efficient reasoning"
+  "gpt-4o"            "legacy, still available"
+)
+
+WIZARD_MODELS_GEMINI=(
+  "gemini-2.5-flash"               "best price/performance, stable"
+  "gemini-3-pro-preview"           "most intelligent, preview"
+  "gemini-3-flash-preview"         "fast+balanced, preview"
+  "gemini-2.5-pro"                 "advanced thinking, stable"
+  "gemini-2.5-flash-lite"          "ultra-fast, cheapest"
+  "gemini-2.0-flash"               "previous gen (deprecates Mar 2026)"
+)
+
+WIZARD_MODELS_GROQ=(
+  "llama-3.3-70b-versatile"                   "Meta 70B, 280 t/s, best quality"
+  "llama-3.1-8b-instant"                      "Meta 8B, 560 t/s, ultra-fast"
+  "openai/gpt-oss-120b"                       "OpenAI open-weight 120B, 500 t/s"
+  "openai/gpt-oss-20b"                        "OpenAI open-weight 20B, 1000 t/s"
+  "meta-llama/llama-4-maverick-17b-128e-instruct" "Llama 4 MoE, 600 t/s, preview"
+  "meta-llama/llama-4-scout-17b-16e-instruct" "Llama 4 Scout, 750 t/s, preview"
+  "qwen/qwen3-32b"                            "Alibaba 32B, 400 t/s, preview"
+  "moonshotai/kimi-k2-instruct-0905"          "Moonshot Kimi K2, 200 t/s, preview"
+)
+
+WIZARD_MODELS_OLLAMA=(
+  "qwen3:4b"                    "2.5GB — best all-round intelligence, dual-mode, 100+ languages"
+  "phi4-mini"                   "3.3GB — best tool calling + agent restraint, stable English"
+  "nanbeige4.1:3b"              "2.0GB — NEW Feb 2026, rivals 32B models, unified generalist"
+  "gemma3:4b"                   "3.3GB — multimodal (understands images), strong general"
+  "qwen3:1.7b"                  "1.0GB — ultra-light, good basics, 100+ languages"
+  "smollm3:3b"                  "2.0GB — HuggingFace, reasoning + tool calling + multilingual"
+  "lfm2.5:1.2b"                "0.8GB — fastest inference (1.5s CPU), hybrid architecture"
+  "qwen3:0.6b"                  "0.4GB — 600M params, impossibly good tool calling for size"
+  "deepseek-r1:1.5b"            "1.0GB — reasoning specialist, math focus"
+  "gemma3:1b"                   "0.8GB — Google tiny, basic tasks"
+  "llama3.2:3b"                 "2.0GB — Meta, solid instruction following"
+  "mistral:7b"                  "4.1GB — classic workhorse (needs 8GB+ RAM, tight on 6GB)"
+  "qwen3:8b"                    "4.7GB — most intelligent 8B (needs 8GB+ RAM, tight on 6GB)"
+)
+
+# ════════════════════════════════════════════════
 # FORMATTING
 # ════════════════════════════════════════════════
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -464,42 +564,11 @@ wizard() {
     case "$_WIZ_CHOICE" in
         1)  LLM_PROVIDER="openrouter"; LLM_API_BASE="https://openrouter.ai/api/v1"
             ask "API key (https://openrouter.ai/keys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "anthropic/claude-sonnet-4.5"    "latest Sonnet, best coding+agents" \
-                "anthropic/claude-opus-4.6"      "most powerful, complex challenges" \
-                "anthropic/claude-opus-4.5"      "strong all-rounder" \
-                "anthropic/claude-sonnet-4"      "balanced price/performance" \
-                "openai/gpt-5.2"                 "OpenAI flagship, coding+agentic" \
-                "openai/gpt-5.1"                 "configurable reasoning effort" \
-                "openai/gpt-5"                   "previous gen reasoning" \
-                "openai/gpt-5-mini"              "fast, cost-efficient GPT-5" \
-                "google/gemini-3-pro-preview"    "Google most intelligent" \
-                "google/gemini-3-flash-preview"  "Google fast+balanced" \
-                "google/gemini-2.5-flash"        "Google best price/perf" \
-                "google/gemini-2.5-pro"          "Google advanced thinking" \
-                "deepseek/deepseek-r1"           "reasoning, open-weight" \
-                "deepseek/deepseek-v3-0324"      "fast general purpose" \
-                "meta-llama/llama-4-maverick"    "Meta latest MoE" \
-                "qwen/qwen3-235b-a22b"           "Alibaba frontier"
+            select_model LLM_MODEL "${WIZARD_MODELS_OPENROUTER[@]}"
             ;;
         2)  LLM_PROVIDER="zhipu"; LLM_API_BASE="https://open.bigmodel.cn/api/paas/v4"
             ask "API key (https://bigmodel.cn/usercenter/proj-mgmt/apikeys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "glm-5"                  "744B MoE (40B active), flagship, agentic engineering" \
-                "glm-4.7"               "355B MoE (32B active), coding+reasoning+agents" \
-                "glm-4.7-flashx"        "fast+cheap, extended FlashX" \
-                "glm-4.7-flash"         "30B MoE (3B active), free tier" \
-                "glm-4.6"              "357B, 200K context, agentic+coding" \
-                "glm-4.5"              "355B MoE, reasoning+agents" \
-                "glm-4.5-x"            "extended context GLM-4.5" \
-                "glm-4.5-air"          "106B MoE (12B active), balanced cost/perf" \
-                "glm-4.5-airx"         "extended context Air" \
-                "glm-4.5-flash"        "free tier, fast" \
-                "glm-4-32b-0414-128k"  "open-weight 32B, 128K context" \
-                "glm-4.6v"             "106B vision, 128K ctx, native tool use" \
-                "glm-4.6v-flashx"      "fast+cheap vision" \
-                "glm-4.5v"             "vision multimodal" \
-                "glm-4.6v-flash"       "9B vision, free tier"
+            select_model LLM_MODEL "${WIZARD_MODELS_ZHIPU[@]}"
             ;;
         3)  LLM_PROVIDER="openrouter"; LLM_API_BASE="https://openrouter.ai/api/v1"
             echo ""
@@ -509,51 +578,19 @@ wizard() {
             info "Get a free OpenRouter key at: ${CYAN}https://openrouter.ai/keys${NC}"
             echo ""
             ask "OpenRouter API key (https://openrouter.ai/keys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "anthropic/claude-sonnet-4.5"     "latest Sonnet, best coding+agents" \
-                "anthropic/claude-opus-4.6"       "most powerful, complex challenges" \
-                "anthropic/claude-opus-4.5"       "strong all-rounder" \
-                "anthropic/claude-opus-4.1"       "capable reasoning" \
-                "anthropic/claude-opus-4"         "first Opus 4" \
-                "anthropic/claude-sonnet-4"       "balanced, widely used" \
-                "anthropic/claude-haiku-4.5"      "fastest, cheapest"
+            select_model LLM_MODEL "${WIZARD_MODELS_OPENROUTER_ANTHROPIC[@]}"
             ;;
         4)  LLM_PROVIDER="openai"; LLM_API_BASE=""
             ask "API key (https://platform.openai.com)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "gpt-5.2"           "flagship, coding+agentic" \
-                "gpt-5.1"           "configurable reasoning effort" \
-                "gpt-5"             "previous gen intelligent reasoning" \
-                "gpt-5-mini"        "fast, cost-efficient" \
-                "gpt-5-nano"        "fastest, cheapest GPT-5" \
-                "gpt-4.1"           "smartest non-reasoning" \
-                "gpt-4.1-mini"      "smaller, faster GPT-4.1" \
-                "gpt-4.1-nano"      "fastest GPT-4.1" \
-                "o3"                "reasoning, complex tasks" \
-                "o4-mini"            "fast cost-efficient reasoning" \
-                "gpt-4o"            "legacy, still available"
+            select_model LLM_MODEL "${WIZARD_MODELS_OPENAI[@]}"
             ;;
         5)  LLM_PROVIDER="gemini"; LLM_API_BASE=""
             ask "API key (https://aistudio.google.com/api-keys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "gemini-2.5-flash"               "best price/performance, stable" \
-                "gemini-3-pro-preview"           "most intelligent, preview" \
-                "gemini-3-flash-preview"         "fast+balanced, preview" \
-                "gemini-2.5-pro"                 "advanced thinking, stable" \
-                "gemini-2.5-flash-lite"          "ultra-fast, cheapest" \
-                "gemini-2.0-flash"               "previous gen (deprecates Mar 2026)"
+            select_model LLM_MODEL "${WIZARD_MODELS_GEMINI[@]}"
             ;;
         6)  LLM_PROVIDER="groq"; LLM_API_BASE="https://api.groq.com/openai/v1"
             ask "API key (https://console.groq.com)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "llama-3.3-70b-versatile"                   "Meta 70B, 280 t/s, best quality" \
-                "llama-3.1-8b-instant"                      "Meta 8B, 560 t/s, ultra-fast" \
-                "openai/gpt-oss-120b"                       "OpenAI open-weight 120B, 500 t/s" \
-                "openai/gpt-oss-20b"                        "OpenAI open-weight 20B, 1000 t/s" \
-                "meta-llama/llama-4-maverick-17b-128e-instruct" "Llama 4 MoE, 600 t/s, preview" \
-                "meta-llama/llama-4-scout-17b-16e-instruct" "Llama 4 Scout, 750 t/s, preview" \
-                "qwen/qwen3-32b"                            "Alibaba 32B, 400 t/s, preview" \
-                "moonshotai/kimi-k2-instruct-0905"          "Moonshot Kimi K2, 200 t/s, preview"
+            select_model LLM_MODEL "${WIZARD_MODELS_GROQ[@]}"
             echo ""
             info "Groq models will be routed via the OpenRouter config slot"
             info "(PicoClaw workaround — Groq's API is OpenAI-compatible)"
@@ -571,20 +608,7 @@ wizard() {
             info "Models are downloaded after installation."
             info "Ollama's API is OpenAI-compatible and routes via the vllm provider slot."
             echo ""
-            select_model OLLAMA_MODEL \
-                "qwen3:4b"                    "2.5GB — best all-round intelligence, dual-mode, 100+ languages" \
-                "phi4-mini"                   "3.3GB — best tool calling + agent restraint, stable English" \
-                "nanbeige4.1:3b"              "2.0GB — NEW Feb 2026, rivals 32B models, unified generalist" \
-                "gemma3:4b"                   "3.3GB — multimodal (understands images), strong general" \
-                "qwen3:1.7b"                  "1.0GB — ultra-light, good basics, 100+ languages" \
-                "smollm3:3b"                  "2.0GB — HuggingFace, reasoning + tool calling + multilingual" \
-                "lfm2.5:1.2b"                "0.8GB — fastest inference (1.5s CPU), hybrid architecture" \
-                "qwen3:0.6b"                  "0.4GB — 600M params, impossibly good tool calling for size" \
-                "deepseek-r1:1.5b"            "1.0GB — reasoning specialist, math focus" \
-                "gemma3:1b"                   "0.8GB — Google tiny, basic tasks" \
-                "llama3.2:3b"                 "2.0GB — Meta, solid instruction following" \
-                "mistral:7b"                  "4.1GB — classic workhorse (needs 8GB+ RAM, tight on 6GB)" \
-                "qwen3:8b"                    "4.7GB — most intelligent 8B (needs 8GB+ RAM, tight on 6GB)"
+            select_model OLLAMA_MODEL "${WIZARD_MODELS_OLLAMA[@]}"
             LLM_MODEL="$OLLAMA_MODEL"
             echo ""
 			printf "  ${DIM}PicoClaw's system prompt uses ~4000+ tokens (skills + tools).${NC}\n"
@@ -3240,6 +3264,104 @@ OLLAMA_SVC="ollama"
 G='\033[0;32m'; R='\033[0;31m'; Y='\033[1;33m'
 C='\033[0;36m'; B='\033[1m'; D='\033[2m'; M='\033[0;35m'; N='\033[0m'
 
+# CLI Model Lists
+CLI_MODELS_OPENROUTER="anthropic/claude-sonnet-4.5|Anthropic latest Sonnet, best coding+agents
+anthropic/claude-opus-4.6|Anthropic most powerful, complex challenges
+anthropic/claude-opus-4.5|Anthropic strong all-rounder
+anthropic/claude-opus-4.1|Anthropic capable reasoning
+anthropic/claude-opus-4|Anthropic first Opus 4
+anthropic/claude-sonnet-4|Anthropic balanced, widely used
+anthropic/claude-haiku-4.5|Anthropic fastest, cheapest
+openai/gpt-5.2|OpenAI flagship, coding+agentic
+openai/gpt-5.1|OpenAI configurable reasoning effort
+openai/gpt-5|OpenAI previous gen reasoning
+openai/gpt-5-mini|OpenAI fast, cost-efficient
+openai/gpt-5-nano|OpenAI fastest, cheapest
+openai/gpt-4.1|OpenAI smartest non-reasoning
+openai/gpt-4.1-mini|OpenAI smaller, faster
+openai/gpt-4.1-nano|OpenAI fastest GPT-4.1
+openai/o3|OpenAI reasoning, complex tasks
+openai/o4-mini|OpenAI fast cost-efficient reasoning
+openai/gpt-4o|OpenAI legacy, still available
+google/gemini-3-pro-preview|Google most intelligent, preview
+google/gemini-3-flash-preview|Google fast+balanced, preview
+google/gemini-2.5-flash|Google best price/perf, stable
+google/gemini-2.5-pro|Google advanced thinking, stable
+google/gemini-2.5-flash-lite|Google ultra-fast, cheapest
+google/gemini-2.0-flash|Google previous gen (deprecates Mar 2026)
+deepseek/deepseek-r1|DeepSeek reasoning, open-weight
+deepseek/deepseek-v3-0324|DeepSeek fast general purpose
+meta-llama/llama-4-maverick|Meta latest MoE
+qwen/qwen3-235b-a22b|Alibaba frontier"
+
+CLI_MODELS_OPENROUTER_ANTHROPIC="anthropic/claude-sonnet-4.5|Latest Sonnet, best coding+agents
+anthropic/claude-opus-4.6|Most powerful, complex challenges
+anthropic/claude-opus-4.5|Strong all-rounder
+anthropic/claude-opus-4.1|Capable reasoning
+anthropic/claude-opus-4|First Opus 4
+anthropic/claude-sonnet-4|Balanced, widely used
+anthropic/claude-haiku-4.5|Fastest, cheapest"
+
+CLI_MODELS_ZHIPU="glm-5|744B MoE (40B active), flagship, agentic engineering
+glm-4.7|355B MoE (32B active), coding+reasoning+agents
+glm-4.7-flashx|Fast+cheap, extended FlashX
+glm-4.7-flash|30B MoE (3B active), free tier
+glm-4.6|357B, 200K context, agentic+coding
+glm-4.5|355B MoE, reasoning+agents
+glm-4.5-x|Extended context GLM-4.5
+glm-4.5-air|106B MoE (12B active), balanced cost/perf
+glm-4.5-airx|Extended context Air
+glm-4.5-flash|Free tier, fast
+glm-4-32b-0414-128k|Open-weight 32B, 128K context
+glm-4.6v|106B vision, 128K ctx, native tool use
+glm-4.6v-flashx|Fast+cheap vision
+glm-4.5v|Vision multimodal
+glm-4.6v-flash|9B vision, free tier"
+
+CLI_MODELS_OPENAI="gpt-5.2|Flagship, coding+agentic
+gpt-5.1|Configurable reasoning effort
+gpt-5|Previous gen intelligent reasoning
+gpt-5-mini|Fast, cost-efficient
+gpt-5-nano|Fastest, cheapest GPT-5
+gpt-4.1|Smartest non-reasoning
+gpt-4.1-mini|Smaller, faster GPT-4.1
+gpt-4.1-nano|Fastest GPT-4.1
+o3|Reasoning, complex tasks
+o3-pro|More compute for better responses
+o4-mini|Fast cost-efficient reasoning
+gpt-4o|Fast, intelligent, flexible
+gpt-4o-mini|Fast, affordable small model"
+
+CLI_MODELS_GEMINI="gemini-3-pro-preview|Most intelligent, preview
+gemini-3-flash-preview|Fast+balanced, preview
+gemini-2.5-flash|Best price/performance, stable
+gemini-2.5-pro|Advanced thinking, stable
+gemini-2.5-flash-lite|Ultra-fast, cheapest
+gemini-2.0-flash|Previous gen (deprecates Mar 2026)"
+
+CLI_MODELS_GROQ="llama-3.3-70b-versatile|Meta 70B, 280 t/s, best quality
+llama-3.1-8b-instant|Meta 8B, 560 t/s, ultra-fast
+openai/gpt-oss-120b|OpenAI open-weight 120B, 500 t/s
+openai/gpt-oss-20b|OpenAI open-weight 20B, 1000 t/s
+meta-llama/llama-4-maverick-17b-128e-instruct|Llama 4 MoE, 600 t/s
+meta-llama/llama-4-scout-17b-16e-instruct|Llama 4 Scout, 750 t/s
+qwen/qwen3-32b|Alibaba 32B, 400 t/s
+moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
+
+CLI_MODELS_OLLAMA="qwen3:4b|2.5GB — best all-round intelligence, dual-mode, 100+ languages
+phi4-mini|3.3GB — best tool calling + agent restraint, stable English
+nanbeige4.1:3b|2.0GB — NEW Feb 2026, rivals 32B models, unified generalist
+gemma3:4b|3.3GB — multimodal (understands images), strong general
+qwen3:1.7b|1.0GB — ultra-light, good basics, 100+ languages
+smollm3:3b|2.0GB — HuggingFace, reasoning + tool calling + multilingual
+lfm2.5:1.2b|0.8GB — fastest inference (1.5s CPU), hybrid architecture
+qwen3:0.6b|0.4GB — 600M params, impossibly good tool calling for size
+deepseek-r1:1.5b|1.0GB — reasoning specialist, math focus
+gemma3:1b|0.8GB — Google tiny, basic tasks
+llama3.2:3b|2.0GB — Meta, solid instruction following
+mistral:7b|4.1GB — classic workhorse (needs 8GB+ RAM)
+qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
+
 _json_escape() {
     local s="$1"
     s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')
@@ -3805,97 +3927,14 @@ cmd_model() {
 
     local MODEL_DATA=""
     case "$PROVIDER" in
-        openrouter)
-            MODEL_DATA="anthropic/claude-sonnet-4.5|Anthropic latest Sonnet, best coding+agents
-anthropic/claude-opus-4.6|Anthropic most powerful, complex challenges
-anthropic/claude-opus-4.5|Anthropic strong all-rounder
-anthropic/claude-opus-4.1|Anthropic capable reasoning
-anthropic/claude-opus-4|Anthropic first Opus 4
-anthropic/claude-sonnet-4|Anthropic balanced, widely used
-anthropic/claude-haiku-4.5|Anthropic fastest, cheapest
-openai/gpt-5.2|OpenAI flagship, coding+agentic
-openai/gpt-5.1|OpenAI configurable reasoning effort
-openai/gpt-5|OpenAI previous gen reasoning
-openai/gpt-5-mini|OpenAI fast, cost-efficient
-openai/gpt-5-nano|OpenAI fastest, cheapest
-openai/gpt-4.1|OpenAI smartest non-reasoning
-openai/gpt-4.1-mini|OpenAI smaller, faster
-openai/gpt-4.1-nano|OpenAI fastest GPT-4.1
-openai/o3|OpenAI reasoning, complex tasks
-openai/o4-mini|OpenAI fast cost-efficient reasoning
-openai/gpt-4o|OpenAI legacy, still available
-google/gemini-3-pro-preview|Google most intelligent, preview
-google/gemini-3-flash-preview|Google fast+balanced, preview
-google/gemini-2.5-flash|Google best price/perf, stable
-google/gemini-2.5-pro|Google advanced thinking, stable
-google/gemini-2.5-flash-lite|Google ultra-fast, cheapest
-google/gemini-2.0-flash|Google previous gen (deprecates Mar 2026)
-deepseek/deepseek-r1|DeepSeek reasoning, open-weight
-deepseek/deepseek-v3-0324|DeepSeek fast general purpose
-meta-llama/llama-4-maverick|Meta latest MoE
-qwen/qwen3-235b-a22b|Alibaba frontier"
-            ;;
-        openrouter-anthropic)
-            MODEL_DATA="anthropic/claude-sonnet-4.5|Latest Sonnet, best coding+agents
-anthropic/claude-opus-4.6|Most powerful, complex challenges
-anthropic/claude-opus-4.5|Strong all-rounder
-anthropic/claude-opus-4.1|Capable reasoning
-anthropic/claude-opus-4|First Opus 4
-anthropic/claude-sonnet-4|Balanced, widely used
-anthropic/claude-haiku-4.5|Fastest, cheapest"
-            ;;
-        zhipu)
-            MODEL_DATA="glm-5|744B MoE (40B active), flagship, agentic engineering
-glm-4.7|355B MoE (32B active), coding+reasoning+agents
-glm-4.7-flashx|Fast+cheap, extended FlashX
-glm-4.7-flash|30B MoE (3B active), free tier
-glm-4.6|357B, 200K context, agentic+coding
-glm-4.5|355B MoE, reasoning+agents
-glm-4.5-x|Extended context GLM-4.5
-glm-4.5-air|106B MoE (12B active), balanced cost/perf
-glm-4.5-airx|Extended context Air
-glm-4.5-flash|Free tier, fast
-glm-4-32b-0414-128k|Open-weight 32B, 128K context
-glm-4.6v|106B vision, 128K ctx, native tool use
-glm-4.6v-flashx|Fast+cheap vision
-glm-4.5v|Vision multimodal
-glm-4.6v-flash|9B vision, free tier"
-            ;;
-        openai)
-            MODEL_DATA="gpt-5.2|Flagship, coding+agentic
-gpt-5.1|Configurable reasoning effort
-gpt-5|Previous gen intelligent reasoning
-gpt-5-mini|Fast, cost-efficient
-gpt-5-nano|Fastest, cheapest GPT-5
-gpt-4.1|Smartest non-reasoning
-gpt-4.1-mini|Smaller, faster GPT-4.1
-gpt-4.1-nano|Fastest GPT-4.1
-o3|Reasoning, complex tasks
-o3-pro|More compute for better responses
-o4-mini|Fast cost-efficient reasoning
-gpt-4o|Fast, intelligent, flexible
-gpt-4o-mini|Fast, affordable small model"
-            ;;
-        gemini)
-            MODEL_DATA="gemini-3-pro-preview|Most intelligent, preview
-gemini-3-flash-preview|Fast+balanced, preview
-gemini-2.5-flash|Best price/performance, stable
-gemini-2.5-pro|Advanced thinking, stable
-gemini-2.5-flash-lite|Ultra-fast, cheapest
-gemini-2.0-flash|Previous gen (deprecates Mar 2026)"
-            ;;
-        groq)
-            MODEL_DATA="llama-3.3-70b-versatile|Meta 70B, 280 t/s, best quality
-llama-3.1-8b-instant|Meta 8B, 560 t/s, ultra-fast
-openai/gpt-oss-120b|OpenAI open-weight 120B, 500 t/s
-openai/gpt-oss-20b|OpenAI open-weight 20B, 1000 t/s
-meta-llama/llama-4-maverick-17b-128e-instruct|Llama 4 MoE, 600 t/s
-meta-llama/llama-4-scout-17b-16e-instruct|Llama 4 Scout, 750 t/s
-qwen/qwen3-32b|Alibaba 32B, 400 t/s
-moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
-            ;;
-        vllm) MODEL_DATA="" ;;
-        *)    MODEL_DATA="" ;;
+        openrouter)           MODEL_DATA="$CLI_MODELS_OPENROUTER" ;;
+        openrouter-anthropic) MODEL_DATA="$CLI_MODELS_OPENROUTER_ANTHROPIC" ;;
+        zhipu)                MODEL_DATA="$CLI_MODELS_ZHIPU" ;;
+        openai)               MODEL_DATA="$CLI_MODELS_OPENAI" ;;
+        gemini)               MODEL_DATA="$CLI_MODELS_GEMINI" ;;
+        groq)                 MODEL_DATA="$CLI_MODELS_GROQ" ;;
+        vllm)                 MODEL_DATA="" ;;
+        *)                    MODEL_DATA="" ;;
     esac
 
     echo ""
@@ -6400,19 +6439,7 @@ _ollama_model() {
     printf "  Context:        ${D}${OLLAMA_NUM_CTX} tokens${N}\n"
     echo ""
 
-    local MODEL_DATA="qwen3:4b|2.5GB — best all-round intelligence, dual-mode, 100+ languages
-phi4-mini|3.3GB — best tool calling + agent restraint, stable English
-nanbeige4.1:3b|2.0GB — NEW Feb 2026, rivals 32B models, unified generalist
-gemma3:4b|3.3GB — multimodal (understands images), strong general
-qwen3:1.7b|1.0GB — ultra-light, good basics, 100+ languages
-smollm3:3b|2.0GB — HuggingFace, reasoning + tool calling + multilingual
-lfm2.5:1.2b|0.8GB — fastest inference (1.5s CPU), hybrid architecture
-qwen3:0.6b|0.4GB — 600M params, impossibly good tool calling for size
-deepseek-r1:1.5b|1.0GB — reasoning specialist, math focus
-gemma3:1b|0.8GB — Google tiny, basic tasks
-llama3.2:3b|2.0GB — Meta, solid instruction following
-mistral:7b|4.1GB — classic workhorse (needs 8GB+ RAM)
-qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
+    local MODEL_DATA="$CLI_MODELS_OLLAMA"
 
     local -a MODEL_IDS=()
     local -a MODEL_DESCS=()
