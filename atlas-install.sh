@@ -4,7 +4,7 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v1.0.8
+#  Version: v1.0.10
 #  Upstream: sipeed/picoclaw
 #  License: Proprietary (see LICENSE file)
 #
@@ -733,6 +733,10 @@ wizard() {
         case "$LLM_PROVIDER" in
             openrouter|zhipu|openai|gemini|groq|vllm|ollama) ;;
             *) die "Config error: unsupported llm_provider '${LLM_PROVIDER}' (valid: openrouter, zhipu, openai, gemini, groq, vllm, ollama)" ;;
+        esac
+        case "$INSTALL_FROM" in
+            binary|source) ;;
+            *) die "Config error: install_from must be 'binary' or 'source' (got '${INSTALL_FROM}')" ;;
         esac
         if [[ "$LLM_PROVIDER" != "ollama" && "$LLM_PROVIDER" != "vllm" && -z "$LLM_API_KEY" ]]; then
             die "Config error: llm_api_key is required for provider '${LLM_PROVIDER}'"
