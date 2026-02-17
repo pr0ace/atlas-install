@@ -131,19 +131,19 @@ max_tool_iter: 20                              # Max consecutive tool-call round
 #   "moonshotai/kimi-k2-instruct-0905"            (Moonshot Kimi K2, 200 t/s)
 #
 # Ollama models (local):
-#   "qwen3:4b"          2.5GB  (recommended)
-#   "phi4-mini"          3.3GB
-#   "nanbeige4.1:3b"    2.0GB
-#   "gemma3:4b"          3.3GB
-#   "qwen3:1.7b"        1.0GB
-#   "smollm3:3b"        2.0GB
-#   "lfm2.5:1.2b"       0.8GB
-#   "qwen3:0.6b"        0.4GB
-#   "deepseek-r1:1.5b"  1.0GB
-#   "gemma3:1b"          0.8GB
-#   "llama3.2:3b"       2.0GB
-#   "mistral:7b"        4.1GB  (needs 8GB+ RAM)
-#   "qwen3:8b"          4.7GB  (needs 8GB+ RAM)
+#   "qwen3:4b"          2.5GB — best all-round intelligence, dual-mode, 100+ languages  (recommended)
+#   "phi4-mini"         3.3GB — best tool calling + agent restraint, stable English
+#   "nanbeige4.1:3b"    2.0GB — NEW Feb 2026, rivals 32B models, unified generalist
+#   "gemma3:4b"         3.3GB — multimodal (understands images), strong general
+#   "qwen3:1.7b"        1.0GB — ultra-light, good basics, 100+ languages
+#   "smollm3:3b"        2.0GB — HuggingFace, reasoning + tool calling + multilingual
+#   "lfm2.5:1.2b"       0.8GB — fastest inference (1.5s CPU), hybrid architecture
+#   "qwen3:0.6b"        0.4GB — 600M params, impossibly good tool calling for size
+#   "deepseek-r1:1.5b"  1.0GB — reasoning specialist, math focus
+#   "gemma3:1b"         0.8GB — Google tiny, basic tasks
+#   "llama3.2:3b"       2.0GB — Meta, solid instruction following
+#   "mistral:7b"        4.1GB — classic workhorse (needs 8GB+ RAM, tight on 6GB)
+#   "qwen3:8b"          4.7GB — most intelligent 8B (needs 8GB+ RAM, tight on 6GB)
 
 # --------------------------------------------------------------------------
 # Ollama (Local LLM)
