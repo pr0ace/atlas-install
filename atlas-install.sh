@@ -704,6 +704,9 @@ wizard() {
                 ollama)     LLM_API_BASE="${OLLAMA_API_BASE}" ;;
             esac
         fi
+        if [[ "$LLM_PROVIDER" == "vllm" && -z "$LLM_API_BASE" ]]; then
+            die "Config error: llm_api_base is required for provider 'vllm'"
+        fi
 
         # Validate FTP password when FTP is enabled
         if [[ "${SETUP_FTP}" == "true" ]]; then
@@ -731,7 +734,7 @@ wizard() {
             openrouter|zhipu|openai|gemini|groq|vllm|ollama) ;;
             *) die "Config error: unsupported llm_provider '${LLM_PROVIDER}' (valid: openrouter, zhipu, openai, gemini, groq, vllm, ollama)" ;;
         esac
-        if [[ "$LLM_PROVIDER" != "ollama" && -z "$LLM_API_KEY" ]]; then
+        if [[ "$LLM_PROVIDER" != "ollama" && "$LLM_PROVIDER" != "vllm" && -z "$LLM_API_KEY" ]]; then
             die "Config error: llm_api_key is required for provider '${LLM_PROVIDER}'"
         fi
         if [[ -z "$LLM_MODEL" ]]; then
@@ -754,8 +757,8 @@ wizard() {
             [[ -n "$GROQ_EXTRA_KEY" ]] || die "Config error: groq_extra_key is required when groq_extra_enabled is true"
         fi
         if [[ "${FEISHU_ENABLED}" == "true" ]]; then
-            [[ -n "$FS_APP_ID" ]] || die "Config error: fs_app_id is required when feishu_enabled is true"
-            [[ -n "$FS_SECRET" ]] || die "Config error: fs_secret is required when feishu_enabled is true"
+            [[ -n "$FS_APP_ID" ]] || die "Config error: feishu_app_id is required when feishu_enabled is true"
+            [[ -n "$FS_SECRET" ]] || die "Config error: feishu_app_secret is required when feishu_enabled is true"
         fi
 
         # Auto-link: ollama provider requires setup_ollama
@@ -1200,7 +1203,7 @@ wizard() {
 # STEP 1: SYSTEM UPDATE + PACKAGES
 # ════════════════════════════════════════════════
 install_system() {
-    step "1/13" "System Update & Packages"
+    step "1/14" "System Update & Packages"
 
     info "Updating package lists..."
     apt-get update -qq || die "apt-get update failed"
@@ -1259,7 +1262,7 @@ install_system() {
 # STEP 2: SYSTEM PERFORMANCE OPTIMIZER
 # ════════════════════════════════════════════════
 optimize_system() {
-    step "2/13" "System Performance Optimizer"
+    step "2/14" "System Performance Optimizer"
 
     if [[ "$SETUP_PERFORMANCE" != "true" ]]; then
         info "Skipped — performance optimization not selected"
@@ -1834,7 +1837,7 @@ KSMEOF
 # STEP 3: GO COMPILER (source build only)
 # ════════════════════════════════════════════════
 install_go() {
-    step "3/13" "Go ${GO_VERSION} Compiler"
+    step "3/14" "Go ${GO_VERSION} Compiler"
 
     if [[ "$INSTALL_FROM" != "source" ]]; then
         success "Skipped (using pre-built binary)"
@@ -1919,7 +1922,7 @@ install_picoclaw() {
 }
 
 install_picoclaw_binary() {
-    step "4/13" "PicoClaw ${PICOCLAW_VERSION} (pre-built binary)"
+    step "4/14" "PicoClaw ${PICOCLAW_VERSION} (pre-built binary)"
 
     local arch asset pc_sha
     arch=$ARCH
@@ -1975,7 +1978,7 @@ install_picoclaw_binary() {
 }
 
 install_picoclaw_source() {
-    step "4/13" "PicoClaw ${PICOCLAW_VERSION} (build from source)"
+    step "4/14" "PicoClaw ${PICOCLAW_VERSION} (build from source)"
 
     export PATH="/usr/local/go/bin:/root/go/bin:$PATH"
     export GOPATH="/root/go"
@@ -2032,7 +2035,7 @@ install_picoclaw_source() {
 # STEP 5: ONBOARD
 # ════════════════════════════════════════════════
 init_picoclaw() {
-    step "5/13" "Initializing PicoClaw Workspace"
+    step "5/14" "Initializing PicoClaw Workspace"
 
     mkdir -p "$CONFIG_DIR" "$WORKSPACE_DIR"
     echo "y" | timeout 30 "$PICOCLAW_REAL" onboard 2>/dev/null || true
@@ -2094,7 +2097,7 @@ _extract_atlas_category() {
 # STEP 6: ATLAS SKILLS REPOSITORY
 # ════════════════════════════════════════════════
 install_atlas_skills() {
-    step "6/13" "Atlas Skills Repository"
+    step "6/14" "Atlas Skills Repository"
 
     if [[ "$SETUP_ATLAS" != "true" ]]; then
         info "Skipped — Atlas skills not selected"
@@ -2173,7 +2176,7 @@ install_atlas_skills() {
         local s_cat="${skill_categories[$i]}"
         local target_dir="${ATLAS_SKILLS_DIR}/${s_name}"
 
-        printf "  ${AR} Installing: ${BOLD}${s_name}${NC} ${DIM}(${s_cat})${NC}\n"
+        printf '%s\n' "  ${AR} Installing: ${BOLD}${s_name}${NC} ${DIM}(${s_cat})${NC}"
 
         local -a file_paths=()
         while IFS= read -r fpath; do
@@ -2381,7 +2384,7 @@ METAEOF
 # STEP 7: WRITE CONFIG
 # ════════════════════════════════════════════════
 write_config() {
-    step "7/13" "Writing Configuration"
+    step "7/14" "Writing Configuration"
 
     mkdir -p "$CONFIG_DIR" "$WORKSPACE_DIR"
 
@@ -2660,7 +2663,7 @@ OLLAMACONF
 # STEP 8: WHATSAPP BRIDGE (Baileys/Node.js)
 # ════════════════════════════════════════════════
 install_whatsapp_bridge() {
-    step "8/13" "WhatsApp Bridge (Baileys/Node.js)"
+    step "8/14" "WhatsApp Bridge (Baileys/Node.js)"
 
     if [[ "$WA_ENABLED" != "true" ]]; then
         info "Skipped — WhatsApp not selected"
@@ -2906,10 +2909,10 @@ WASVCEOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 8.5: OLLAMA (Local LLM Server)
+# STEP 9: OLLAMA (Local LLM Server)
 # ════════════════════════════════════════════════
 install_ollama() {
-    step "8.5/13" "Installing Ollama (Local LLM Server)"
+    step "9/14" "Installing Ollama (Local LLM Server)"
 
     if [[ "$SETUP_OLLAMA" != "true" ]]; then
         info "Skipped — Ollama not selected"
@@ -3048,10 +3051,10 @@ OLLAMACONF
 }
 
 # ════════════════════════════════════════════════
-# STEP 9: FTP SERVER (vsftpd)
+# STEP 10: FTP SERVER (vsftpd)
 # ════════════════════════════════════════════════
 install_ftp_server() {
-    step "9/13" "FTP Server (vsftpd)"
+    step "10/14" "FTP Server (vsftpd)"
 
     if [[ "$SETUP_FTP" != "true" ]]; then
         info "Skipped — FTP server not selected"
@@ -3289,10 +3292,10 @@ FTPLREOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 10: SYSTEMD + REBOOT SURVIVAL + BACKUP CRON
+# STEP 11: SYSTEMD + REBOOT SURVIVAL + BACKUP CRON
 # ════════════════════════════════════════════════
 setup_systemd() {
-    step "10/13" "24/7 Service + Reboot Survival + Backup Schedule"
+    step "11/14" "24/7 Service + Reboot Survival + Backup Schedule"
 
     if [[ "$SETUP_SYSTEMD" != "true" ]]; then
         info "Skipped systemd — start manually: picoclaw start"
@@ -3463,10 +3466,10 @@ ABEOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 11: UNIFIED CLI WRAPPER + LOGIN BANNER
+# STEP 12: UNIFIED CLI WRAPPER + LOGIN BANNER
 # ════════════════════════════════════════════════
 install_extras() {
-    step "11/13" "CLI Wrapper & Login Banner"
+    step "12/14" "CLI Wrapper & Login Banner"
 
     cat > "$PICOCLAW_BIN" << 'WRAPEOF'
 #!/usr/bin/env bash
@@ -5661,14 +5664,14 @@ _atlas_update() {
 
         if [[ -f "${target_dir}/SKILL.md" ]]; then
             if [[ "$is_new" == "true" ]]; then
-                printf "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}\n"
+                printf '%s\n' "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}"
                 installed=$((installed + 1))
             else
-                printf "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}\n"
+                printf '%s\n' "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}"
                 updated=$((updated + 1))
             fi
         else
-            printf "  ${R}✘${N} ${R}FAILED${N}  ${B}${s_name}${N} ${D}(SKILL.md missing)${N}\n"
+            printf '%s\n' "  ${R}✘${N} ${R}FAILED${N}  ${B}${s_name}${N} ${D}(SKILL.md missing)${N}"
             failed=$((failed + 1))
         fi
     done <<< "$skillmd_paths"
@@ -5741,10 +5744,10 @@ _atlas_update_via_git() {
             shopt -u nullglob dotglob
 
             if [[ "$is_new" == "true" ]]; then
-                printf "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}\n"
+                printf '%s\n' "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
                 installed=$((installed + 1))
             else
-                printf "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}\n"
+                printf '%s\n' "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
                 updated=$((updated + 1))
             fi
         done
@@ -6776,7 +6779,7 @@ _ollama_model() {
     local custom_name="picoclaw-${NEW_BASE_MODEL//[:\/]/-}"
     local mf="/tmp/picoclaw-modelfile"
     printf 'FROM %s\nPARAMETER num_ctx %s\n' "$NEW_BASE_MODEL" "$OLLAMA_NUM_CTX" > "$mf"
-    ollama create "$custom_name" -f "$mf" || { printf "  ${R}✘ Failed to create custom model${N}"; rm -f "$mf\n"; return 1; }
+    ollama create "$custom_name" -f "$mf" || { printf "  ${R}✘ Failed to create custom model${N}\n"; rm -f "$mf"; return 1; }
     rm -f "$mf"
     printf "  ${G}✔${N} Custom model: ${B}${custom_name}${N} (ctx=${OLLAMA_NUM_CTX})\n"
 
@@ -6872,7 +6875,7 @@ _ollama_ctx() {
     local custom_name="picoclaw-${base_model//[:\/]/-}"
     local mf="/tmp/picoclaw-modelfile"
     printf 'FROM %s\nPARAMETER num_ctx %s\n' "$base_model" "$new_ctx" > "$mf"
-    ollama create "$custom_name" -f "$mf" || { printf "  ${R}✘ Failed to recreate custom model${N}"; rm -f "$mf\n"; return 1; }
+    ollama create "$custom_name" -f "$mf" || { printf "  ${R}✘ Failed to recreate custom model${N}\n"; rm -f "$mf"; return 1; }
     rm -f "$mf"
 
     OLLAMA_NUM_CTX="$new_ctx"
@@ -7011,10 +7014,10 @@ BNEOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 12: INITIAL BACKUP
+# STEP 13: INITIAL BACKUP
 # ════════════════════════════════════════════════
 initial_backup() {
-    step "12/13" "Initial Backup"
+    step "13/14" "Initial Backup"
 
     printf "  ${DIM}Creating a snapshot of the freshly installed system.${NC}\n"
     printf "  ${DIM}This serves as your recovery point if anything changes.${NC}\n"
@@ -7834,19 +7837,19 @@ main() {
     preflight
     resolve_picoclaw_latest
     wizard
-    install_system            # 1/13: apt update + upgrade + packages + Node.js
-    optimize_system           # 2/13: deep performance optimization
-    install_go                # 3/13: Go 1.26.0 (source build only)
-    install_picoclaw          # 4/13: binary or source → picoclaw.bin
-    init_picoclaw             # 5/13: onboard (creates workspace templates)
-    install_atlas_skills      # 6/13: Atlas skills repository (dynamic discovery)
-    write_config              # 7/13: overwrite config.json with wizard values + backup.conf + ftp.conf + whatsapp.conf + ollama.conf
-    install_whatsapp_bridge   # 8/13: WhatsApp Baileys/Node.js bridge + auto QR login
-    install_ollama            # 8.5/13: Ollama local LLM server (optional)
-    install_ftp_server        # 9/13: vsftpd FTP server (optional)
-    setup_systemd             # 10/13: service + watchdog + cron + auto-backup cron
-    install_extras            # 11/13: unified picoclaw wrapper + login banner
-    initial_backup            # 12/13: ask user for initial backup snapshot
+    install_system            # 1/14: apt update + upgrade + packages + Node.js
+    optimize_system           # 2/14: deep performance optimization
+    install_go                # 3/14: Go 1.26.0 (source build only)
+    install_picoclaw          # 4/14: binary or source → picoclaw.bin
+    init_picoclaw             # 5/14: onboard (creates workspace templates)
+    install_atlas_skills      # 6/14: Atlas skills repository (dynamic discovery)
+    write_config              # 7/14: overwrite config.json with wizard values + backup.conf + ftp.conf + whatsapp.conf + ollama.conf
+    install_whatsapp_bridge   # 8/14: WhatsApp Baileys/Node.js bridge + auto QR login
+    install_ollama            # 9/14: Ollama local LLM server (optional)
+    install_ftp_server        # 10/14: vsftpd FTP server (optional)
+    setup_systemd             # 11/14: service + watchdog + cron + auto-backup cron
+    install_extras            # 12/14: unified picoclaw wrapper + login banner
+    initial_backup            # 13/14: ask user for initial backup snapshot
     verify
     final
 }
