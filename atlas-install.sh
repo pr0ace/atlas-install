@@ -33,8 +33,6 @@ trap 'on_error ${LINENO} $?' ERR
 # CACHED SYSCALLS — computed once for performance
 # ════════════════════════════════════════════════
 readonly ARCH=$(uname -m)
-readonly NPROC=$(nproc)
-readonly HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
 
 # ════════════════════════════════════════════════
 # CONSTANTS — verified from source + releases API
@@ -224,25 +222,38 @@ json_escape() {
 }
 
 # ════════════════════════════════════════════════
+# NODE.JS VERSION HELPER
+# Returns the major version number of the installed Node.js (e.g. "20")
+# ════════════════════════════════════════════════
+_node_major() {
+    local v
+    v=$(node --version 2>/dev/null) || v="v0"
+    v="${v#v}"
+    printf '%s' "${v%%.*}"
+}
+
+# ════════════════════════════════════════════════
 # INPUT HELPERS
 # ════════════════════════════════════════════════
 ask() {
     local prompt="$1" var_name="$2" default="${3:-}" secret="${4:-false}"
 
-    local -n existing_value="$var_name" 2>/dev/null || true
-    if [[ -n "${existing_value:-}" ]]; then
-        if [[ "$secret" == "true" ]]; then
-            printf "  ${AR} ${prompt}: ${GREEN}[from config]${NC}\n"
-        else
-            printf "  ${AR} ${prompt}: ${GREEN}${existing_value}${NC} ${DIM}[from config]${NC}\n"
+    if [[ "$CONFIG_LOADED" == "true" ]]; then
+        local -n existing_value="$var_name" 2>/dev/null || true
+        if [[ -n "${existing_value:-}" ]]; then
+            if [[ "$secret" == "true" ]]; then
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}[from config]${NC}"
+            else
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}${existing_value}${NC} ${DIM}[from config]${NC}"
+            fi
+            return 0
         fi
-        return 0
     fi
 
     if [[ -n "$default" && "$secret" != "true" ]]; then
         prompt="${prompt} ${DIM}[${default}]${NC}"
     fi
-    printf "  ${AR} ${prompt}: "
+    printf '%s' "  ${AR} ${prompt}: "
     local input=""
     if [[ "$secret" == "true" ]]; then
         read -rs input || true
@@ -266,15 +277,17 @@ ask_yn() {
         var_name_upper="${var_name_upper^^}"
     fi
 
-    local -n existing_bool="${var_name_upper}" 2>/dev/null || true
-    if [[ -n "${existing_bool:-}" ]]; then
-        local display_val="${existing_bool,,}"
-        if [[ "$display_val" == "true" || "$display_val" == "y" || "$display_val" == "yes" ]]; then
-            printf "  ${AR} ${prompt}: ${GREEN}yes${NC} ${DIM}[from config]${NC}\n"
-            return 0
-        else
-            printf "  ${AR} ${prompt}: ${GREEN}no${NC} ${DIM}[from config]${NC}\n"
-            return 1
+    if [[ "$CONFIG_LOADED" == "true" ]]; then
+        local -n existing_bool="${var_name_upper}" 2>/dev/null || true
+        if [[ -n "${existing_bool:-}" ]]; then
+            local display_val="${existing_bool,,}"
+            if [[ "$display_val" == "true" || "$display_val" == "y" || "$display_val" == "yes" ]]; then
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}yes${NC} ${DIM}[from config]${NC}"
+                return 0
+            else
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}no${NC} ${DIM}[from config]${NC}"
+                return 1
+            fi
         fi
     fi
 
@@ -283,7 +296,7 @@ ask_yn() {
     else
         prompt="${prompt} ${DIM}[y/N]${NC}"
     fi
-    printf "  ${AR} ${prompt}: "
+    printf '%s' "  ${AR} ${prompt}: "
     local input=""
     read -r input || true
     if [[ -z "$input" ]]; then
@@ -357,7 +370,7 @@ parse_config() {
         [INSTALL_FROM]=1 [SETUP_PERFORMANCE]=1
         [LLM_PROVIDER]=1 [LLM_API_KEY]=1 [LLM_MODEL]=1
         [LLM_API_BASE]=1 [MAX_TOKENS]=1 [TEMPERATURE]=1
-        [GROQ_API_KEY]=1 [GROQ_EXTRA_ENABLED]=1
+        [GROQ_EXTRA_KEY]=1 [GROQ_EXTRA_ENABLED]=1
         [BRAVE_ENABLED]=1 [BRAVE_API_KEY]=1 [BRAVE_MAX_RESULTS]=1
         [TG_ENABLED]=1 [TG_TOKEN]=1 [TG_USER_ID]=1 [TG_USERNAME]=1
         [DC_ENABLED]=1 [DC_TOKEN]=1 [DC_USER_ID]=1 [DC_USERNAME]=1
@@ -374,11 +387,12 @@ parse_config() {
     info "Loading config from: ${config_file}"
 
     while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%%\#*}"
+        # Strip leading/trailing whitespace
         line="${line#"${line%%[![:space:]]*}"}"
         line="${line%"${line##*[![:space:]]}"}"
 
-        if [[ -z "$line" ]]; then
+        # Skip blank lines and comment-only lines
+        if [[ -z "$line" || "$line" == \#* ]]; then
             continue
         fi
 
@@ -389,8 +403,13 @@ parse_config() {
             value="${value#"${value%%[![:space:]]*}"}"
             value="${value%"${value##*[![:space:]]}"}"
 
+            # Strip quotes first — quoted values preserve # characters
             if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
                 value="${BASH_REMATCH[1]}"
+            else
+                # Unquoted: strip inline comments (space + #)
+                value="${value%%[[:space:]]\#*}"
+                value="${value%"${value##*[![:space:]]}"}"
             fi
 
             local var_name="${key^^}"
@@ -403,6 +422,13 @@ parse_config() {
             printf -v "$var_name" '%s' "$value"
         fi
     done < "$config_file"
+
+    # Validate numeric fields — reset to defaults if malformed
+    [[ "$MAX_TOKENS" =~ ^[0-9]+$ ]] || MAX_TOKENS=8192
+    [[ "$TEMPERATURE" =~ ^[0-9]+(\.[0-9]+)?$ ]] || TEMPERATURE=0.7
+    [[ "$MAX_TOOL_ITER" =~ ^[0-9]+$ ]] || MAX_TOOL_ITER=20
+    [[ "$GW_PORT" =~ ^[0-9]+$ ]] || GW_PORT=18790
+    [[ "$BRAVE_MAX_RESULTS" =~ ^[0-9]+$ ]] || BRAVE_MAX_RESULTS=5
 
     success "Config loaded"
 }
@@ -456,7 +482,10 @@ select_model() {
 
 # ════════════════════════════════════════════════
 # WIZARD STATE (all global)
+# CONFIG_LOADED is set to true only when --config is used.
+# ask() and ask_yn() check this before treating existing values as overrides.
 # ════════════════════════════════════════════════
+CONFIG_LOADED=false
 INSTALL_FROM="binary"
 LLM_PROVIDER=""; LLM_API_KEY=""; LLM_API_BASE=""; LLM_MODEL=""
 MAX_TOKENS="8192"; TEMPERATURE="0.7"; MAX_TOOL_ITER="20"
@@ -1068,11 +1097,7 @@ install_system() {
         local need_node=true
         if command -v node &>/dev/null; then
             local node_ver=""
-            local node_full_ver
-            node_full_ver=$(node --version 2>/dev/null) || node_full_ver="v0.0.0"
-            node_full_ver="${node_full_ver#v}"
-            node_ver="${node_full_ver%%.*}"
-            [[ -z "$node_ver" ]] && node_ver="0"
+            node_ver=$(_node_major)
             if [[ "$node_ver" =~ ^[0-9]+$ ]] && (( node_ver >= 20 )); then
                 need_node=false
                 success "Node.js $(node --version) already installed (>= 20 OK)"
@@ -1089,11 +1114,7 @@ install_system() {
                 || die "Node.js install failed"
 
             local installed_ver=""
-            local installed_full_ver
-            installed_full_ver=$(node --version 2>/dev/null) || installed_full_ver="v0.0.0"
-            installed_full_ver="${installed_full_ver#v}"
-            installed_ver="${installed_full_ver%%.*}"
-            [[ -z "$installed_ver" ]] && installed_ver="0"
+            installed_ver=$(_node_major)
             if [[ "$installed_ver" =~ ^[0-9]+$ ]] && (( installed_ver >= 20 )); then
                 success "Node.js $(node --version) installed"
             else
@@ -1899,6 +1920,33 @@ init_picoclaw() {
 }
 
 # ════════════════════════════════════════════════
+# SKILL.MD DESCRIPTION HELPER
+# Extracts the description from SKILL.md YAML frontmatter
+# ════════════════════════════════════════════════
+_extract_skill_description() {
+    local skill_md="$1"
+    local desc="" in_frontmatter=false
+    while IFS= read -r mdline; do
+        if [[ "$mdline" == "---" ]]; then
+            if [[ "$in_frontmatter" == "true" ]]; then
+                break
+            fi
+            in_frontmatter=true
+            continue
+        fi
+        if [[ "$in_frontmatter" == "true" ]]; then
+            if [[ "$mdline" =~ ^description:[[:space:]]*(.*) ]]; then
+                desc="${BASH_REMATCH[1]}"
+                desc="${desc#>}"
+                desc="${desc#"${desc%%[![:space:]]*}"}"
+                break
+            fi
+        fi
+    done < "$skill_md" 2>/dev/null || true
+    printf '%s' "${desc:0:80}"
+}
+
+# ════════════════════════════════════════════════
 # STEP 6: ATLAS SKILLS REPOSITORY
 # ════════════════════════════════════════════════
 install_atlas_skills() {
@@ -2035,13 +2083,7 @@ install_atlas_skills() {
 
         if [[ -f "${target_dir}/SKILL.md" ]]; then
             local desc=""
-            desc=$(sed -n '/^---$/,/^---$/p' "${target_dir}/SKILL.md" 2>/dev/null \
-                | grep -E "^description:" 2>/dev/null \
-                | head -1 \
-                | sed 's/^description:[[:space:]]*//' \
-                | sed 's/^>//' \
-                | sed 's/^[[:space:]]*//' \
-                | head -c 80) || true
+            desc=$(_extract_skill_description "${target_dir}/SKILL.md")
 
             success "  ${s_name}: ${file_count} files${DIM}$(if [[ -n "$desc" ]]; then echo " — ${desc}"; fi)${NC}"
             installed_count=$((installed_count + 1))
@@ -2109,13 +2151,7 @@ _atlas_install_via_git() {
             cp -a "${skill_dir}".* "$target_dir/" 2>/dev/null || true
 
             local desc=""
-            desc=$(sed -n '/^---$/,/^---$/p' "${target_dir}/SKILL.md" 2>/dev/null \
-                | grep -E "^description:" 2>/dev/null \
-                | head -1 \
-                | sed 's/^description:[[:space:]]*//' \
-                | sed 's/^>//' \
-                | sed 's/^[[:space:]]*//' \
-                | head -c 80) || true
+            desc=$(_extract_skill_description "${target_dir}/SKILL.md")
 
             # Count top-level files only (not recursive). Acceptable trade-off
             # to avoid forking find; most skills are single-directory.
@@ -2494,11 +2530,8 @@ install_whatsapp_bridge() {
     if ! command -v node &>/dev/null; then
         die "Node.js not found — should have been installed in step 1"
     fi
-    local node_major="" node_full_ver
-    node_full_ver=$(node --version 2>/dev/null) || node_full_ver="v0.0.0"
-    node_full_ver="${node_full_ver#v}"
-    node_major="${node_full_ver%%.*}"
-    [[ -z "$node_major" ]] && node_major="0"
+    local node_major=""
+    node_major=$(_node_major)
     if [[ "$node_major" =~ ^[0-9]+$ ]] && (( node_major >= 20 )); then
         success "Node.js $(node --version) verified (>= 20)"
     else
@@ -4871,8 +4904,8 @@ _backup_run() {
   "timestamp_epoch": $(date +%s),
   "trigger": "${trigger}",
   "picoclaw_version": "${pc_ver}",
-  "hostname": "${HOSTNAME}",
-  "arch": "${ARCH}",
+  "hostname": "$(hostname 2>/dev/null || echo 'unknown')",
+  "arch": "$(uname -m)",
   "size": "${snap_size}",
   "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
   "ftp_configured": ${has_ftp},
@@ -7040,11 +7073,8 @@ verify() {
         fi
 
         if command -v node &>/dev/null; then
-            local nv="" node_full_ver
-            node_full_ver=$(node --version 2>/dev/null) || node_full_ver="v0.0.0"
-            node_full_ver="${node_full_ver#v}"
-            nv="${node_full_ver%%.*}"
-            [[ -z "$nv" ]] && nv="0"
+            local nv=""
+            nv=$(_node_major)
             if [[ "$nv" =~ ^[0-9]+$ ]] && (( nv >= 20 )); then
                 success "WhatsApp: Node.js $(node --version) (>= 20 OK)"
             else
@@ -7641,6 +7671,7 @@ main() {
 
     if [[ -n "$config_file" ]]; then
         parse_config "$config_file"
+        CONFIG_LOADED=true
     fi
 
     banner
