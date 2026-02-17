@@ -56,79 +56,79 @@ max_tool_iter: 20                              # Max consecutive tool-call round
 # --- Model reference (pick one and paste into llm_model above) ---
 #
 # OpenRouter models:
-#   "openrouter/quasar-alpha"                      (recommended)
-#   "google/gemini-2.5-pro-preview"
-#   "google/gemini-2.5-flash-preview"
-#   "deepseek/deepseek-chat-v3-0324"
-#   "qwen/qwen3-235b-a22b"
-#   "qwen/qwen3-32b"
-#   "qwen/qwen3-30b-a3b"
-#   "microsoft/phi-4-reasoning-plus"
-#   "deepseek/deepseek-r1"
-#   "meta-llama/llama-4-maverick"
-#   "meta-llama/llama-4-scout"
-#   "google/gemma-3-27b-it"
-#   "mistralai/mistral-small-3.2-24b-instruct"
-#   "microsoft/mai-ds-r1"
-#   "moonshotai/kimi-k2"
-#   "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+#   "anthropic/claude-sonnet-4.5"                  (recommended, best coding+agents)
+#   "anthropic/claude-opus-4.6"                    (most powerful)
+#   "anthropic/claude-opus-4.5"                    (strong all-rounder)
+#   "anthropic/claude-sonnet-4"                    (balanced price/performance)
+#   "openai/gpt-5.2"                              (OpenAI flagship)
+#   "openai/gpt-5.1"                              (configurable reasoning)
+#   "openai/gpt-5"                                (previous gen reasoning)
+#   "openai/gpt-5-mini"                           (fast, cost-efficient)
+#   "google/gemini-3-pro-preview"                  (Google most intelligent)
+#   "google/gemini-3-flash-preview"                (Google fast+balanced)
+#   "google/gemini-2.5-flash"                      (Google best price/perf)
+#   "google/gemini-2.5-pro"                        (Google advanced thinking)
+#   "deepseek/deepseek-r1"                         (reasoning, open-weight)
+#   "deepseek/deepseek-v3-0324"                    (fast general purpose)
+#   "meta-llama/llama-4-maverick"                  (Meta latest MoE)
+#   "qwen/qwen3-235b-a22b"                        (Alibaba frontier)
 #
 # Anthropic (via OpenRouter):
-#   "anthropic/claude-sonnet-4"                    (recommended)
-#   "anthropic/claude-opus-4"
-#   "anthropic/claude-3.7-sonnet"
-#   "anthropic/claude-3.5-haiku"
-#   "anthropic/claude-3.5-sonnet"
-#   "anthropic/claude-3-haiku"
-#   "anthropic/claude-3-opus"
+#   "anthropic/claude-sonnet-4.5"                  (recommended, best coding+agents)
+#   "anthropic/claude-opus-4.6"                    (most powerful)
+#   "anthropic/claude-opus-4.5"                    (strong all-rounder)
+#   "anthropic/claude-opus-4.1"                    (capable reasoning)
+#   "anthropic/claude-opus-4"                      (first Opus 4)
+#   "anthropic/claude-sonnet-4"                    (balanced, widely used)
+#   "anthropic/claude-haiku-4.5"                   (fastest, cheapest)
 #
 # Zhipu models:
-#   "glm-4-plus"                                   (recommended)
-#   "glm-4-long"
-#   "glm-4-air"
-#   "glm-4-airx"
-#   "glm-4-flash"
-#   "glm-4-flashx"
-#   "glm-4"
-#   "glm-4v"
-#   "glm-4v-plus"
-#   "glm-zero-preview"
-#   "codegeex-4"
-#   "charglm-4"
-#   "emohaa"
-#   "glm-4-0520"
-#   "glm-4-alltools"
+#   "glm-5"                                        (recommended, 744B MoE flagship)
+#   "glm-4.7"                                      (355B MoE, coding+reasoning)
+#   "glm-4.7-flashx"                               (fast+cheap, extended FlashX)
+#   "glm-4.7-flash"                                (30B MoE, free tier)
+#   "glm-4.6"                                      (357B, 200K context)
+#   "glm-4.5"                                      (355B MoE, reasoning+agents)
+#   "glm-4.5-x"                                    (extended context)
+#   "glm-4.5-air"                                  (106B MoE, balanced cost/perf)
+#   "glm-4.5-airx"                                 (extended context Air)
+#   "glm-4.5-flash"                                (free tier, fast)
+#   "glm-4-32b-0414-128k"                          (open-weight 32B, 128K context)
+#   "glm-4.6v"                                     (106B vision, tool use)
+#   "glm-4.6v-flashx"                              (fast+cheap vision)
+#   "glm-4.5v"                                     (vision multimodal)
+#   "glm-4.6v-flash"                               (9B vision, free tier)
 #
 # OpenAI models:
-#   "gpt-4.1"                                     (recommended)
-#   "gpt-4.1-mini"
-#   "gpt-4.1-nano"
-#   "o4-mini"
-#   "o3"
-#   "o3-mini"
-#   "gpt-4o"
-#   "gpt-4o-mini"
-#   "gpt-4-turbo"
-#   "gpt-4"
-#   "gpt-3.5-turbo"
+#   "gpt-5.2"                                     (recommended, flagship)
+#   "gpt-5.1"                                     (configurable reasoning)
+#   "gpt-5"                                       (previous gen reasoning)
+#   "gpt-5-mini"                                  (fast, cost-efficient)
+#   "gpt-5-nano"                                  (fastest, cheapest GPT-5)
+#   "gpt-4.1"                                     (smartest non-reasoning)
+#   "gpt-4.1-mini"                                (smaller, faster GPT-4.1)
+#   "gpt-4.1-nano"                                (fastest GPT-4.1)
+#   "o3"                                          (reasoning, complex tasks)
+#   "o4-mini"                                     (fast cost-efficient reasoning)
+#   "gpt-4o"                                      (legacy, still available)
 #
 # Gemini models:
-#   "gemini-2.5-pro"                               (recommended)
-#   "gemini-2.5-flash"
-#   "gemini-2.0-flash"
-#   "gemini-2.0-flash-lite"
-#   "gemini-1.5-pro"
-#   "gemini-1.5-flash"
+#   "gemini-2.5-flash"                             (recommended, best price/perf)
+#   "gemini-3-pro-preview"                         (most intelligent, preview)
+#   "gemini-3-flash-preview"                       (fast+balanced, preview)
+#   "gemini-2.5-pro"                               (advanced thinking, stable)
+#   "gemini-2.5-flash-lite"                        (ultra-fast, cheapest)
+#   "gemini-2.0-flash"                             (previous gen)
 #
 # Groq models:
-#   "meta-llama/llama-4-scout-17b-16e-instruct"   (recommended)
-#   "qwen/qwen3-32b"
-#   "deepseek-r1-distill-llama-70b"
-#   "llama-3.3-70b-versatile"
-#   "llama-3.1-8b-instant"
-#   "llama-guard-3-8b"
-#   "meta-llama/llama-4-maverick-17b-128e-instruct"
-#   "compound-beta"
+#   "llama-3.3-70b-versatile"                      (recommended, 280 t/s)
+#   "llama-3.1-8b-instant"                         (560 t/s, ultra-fast)
+#   "openai/gpt-oss-120b"                          (OpenAI open-weight, 500 t/s)
+#   "openai/gpt-oss-20b"                           (OpenAI open-weight, 1000 t/s)
+#   "meta-llama/llama-4-maverick-17b-128e-instruct" (Llama 4 MoE, 600 t/s)
+#   "meta-llama/llama-4-scout-17b-16e-instruct"   (Llama 4 Scout, 750 t/s)
+#   "qwen/qwen3-32b"                              (Alibaba 32B, 400 t/s)
+#   "moonshotai/kimi-k2-instruct-0905"            (Moonshot Kimi K2, 200 t/s)
 #
 # Ollama models (local):
 #   "qwen3:4b"          2.5GB  (recommended)
@@ -158,6 +158,7 @@ ollama_num_ctx: 8192                           # Context window size (minimum: 8
 # --------------------------------------------------------------------------
 # Optional Groq API key for voice message transcription.
 # Skipped if primary provider is already Groq (uses same key).
+groq_extra_enabled: false                      # Set to true to enable Groq Whisper voice transcription
 groq_extra_key: ""
 
 # --------------------------------------------------------------------------

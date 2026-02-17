@@ -4,7 +4,7 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v0.0.1
+#  Version: v1.0.4
 #  Upstream: sipeed/picoclaw
 #  License: MIT (see LICENSE file)
 #
@@ -504,7 +504,7 @@ SETUP_PERFORMANCE=true
 SETUP_ATLAS=true
 SETUP_FTP=false; FTP_USER="root"; FTP_PASS=""; FTP_PORT="21"
 FTP_PASV_MIN="40000"; FTP_PASV_MAX="40100"; FTP_TLS=false
-SETUP_OLLAMA=false; OLLAMA_MODEL=""; OLLAMA_NUM_CTX="4096"
+SETUP_OLLAMA=false; OLLAMA_MODEL=""; OLLAMA_NUM_CTX="8192"
 _WIZ_CHOICE=""
 
 # ════════════════════════════════════════════════
@@ -649,10 +649,35 @@ wizard() {
     # Non-interactive mode: all values loaded by parse_config, skip wizard entirely
     if [[ "$CONFIG_LOADED" == "true" ]]; then
         info "Non-interactive mode — skipping wizard (all values from config)"
-        # Validate FTP password length if FTP is enabled
-        if [[ "${SETUP_FTP}" == "true" && -n "$FTP_PASS" && ${#FTP_PASS} -lt 8 ]]; then
-            die "Config error: ftp_pass must be at least 8 characters"
+
+        # Auto-fill LLM_API_BASE from provider when not explicitly set
+        if [[ -z "$LLM_API_BASE" ]]; then
+            case "$LLM_PROVIDER" in
+                openrouter) LLM_API_BASE="https://openrouter.ai/api/v1" ;;
+                zhipu)      LLM_API_BASE="https://open.bigmodel.cn/api/paas/v4" ;;
+                groq)       LLM_API_BASE="https://api.groq.com/openai/v1" ;;
+                ollama)     LLM_API_BASE="${OLLAMA_API_BASE}" ;;
+            esac
         fi
+
+        # Validate FTP password when FTP is enabled
+        if [[ "${SETUP_FTP}" == "true" ]]; then
+            if [[ -z "$FTP_PASS" ]]; then
+                die "Config error: ftp_pass is required when setup_ftp is true"
+            fi
+            if [[ ${#FTP_PASS} -lt 8 ]]; then
+                die "Config error: ftp_pass must be at least 8 characters"
+            fi
+        fi
+
+        # Validate OLLAMA_NUM_CTX minimum
+        if [[ "${SETUP_OLLAMA}" == "true" ]]; then
+            if [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] && (( OLLAMA_NUM_CTX < 8192 )); then
+                warn "ollama_num_ctx (${OLLAMA_NUM_CTX}) below minimum 8192 — resetting to 8192"
+                OLLAMA_NUM_CTX="8192"
+            fi
+        fi
+
         return 0
     fi
 
@@ -1957,6 +1982,25 @@ _extract_skill_description() {
     printf '%s' "${desc:0:80}"
 }
 
+_extract_atlas_category() {
+    local origin_file="$1"
+    local cat="unknown"
+    if [[ -f "$origin_file" ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" == category:* ]]; then
+                cat="${line#category:}"
+                cat="${cat#"${cat%%[![:space:]]*}"}"
+                cat="${cat//[[:space:]]/}"
+                break
+            fi
+        done < "$origin_file"
+    fi
+    if [[ -z "$cat" ]]; then
+        cat="unknown"
+    fi
+    printf '%s' "$cat"
+}
+
 # ════════════════════════════════════════════════
 # STEP 6: ATLAS SKILLS REPOSITORY
 # ════════════════════════════════════════════════
@@ -2216,20 +2260,8 @@ _atlas_write_metadata() {
             sver="${sver//[[:space:]]/}"
         fi
 
-        local scat="unknown"
-        if [[ -f "${skill_dir}.atlas-origin" ]]; then
-            if [[ -f "${skill_dir}.atlas-origin" ]]; then
-                while IFS= read -r line; do
-                    if [[ "$line" == category:* ]]; then
-                        scat="${line#category:}"
-                        scat="${scat#"${scat%%[![:space:]]*}"}"
-                        break
-                    fi
-                done < "${skill_dir}.atlas-origin"
-            fi
-            [[ -z "$scat" ]] && scat="unknown"
-            scat="${scat//[[:space:]]/}"
-        fi
+        local scat=""
+        scat=$(_extract_atlas_category "${skill_dir}.atlas-origin")
 
         if [[ "$first" == "true" ]]; then
             first=false
@@ -3482,6 +3514,25 @@ _json_escape() {
     s="${s//\\/\\\\}"
     s="${s//\"/\\\"}"
     printf '%s' "$s"
+}
+
+_extract_atlas_category() {
+    local origin_file="$1"
+    local cat="unknown"
+    if [[ -f "$origin_file" ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" == category:* ]]; then
+                cat="${line#category:}"
+                cat="${cat#"${cat%%[![:space:]]*}"}"
+                cat="${cat//[[:space:]]/}"
+                break
+            fi
+        done < "$origin_file"
+    fi
+    if [[ -z "$cat" ]]; then
+        cat="unknown"
+    fi
+    printf '%s' "$cat"
 }
 
 _load_backup_conf() {
@@ -5322,17 +5373,8 @@ _atlas_status() {
                     sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
                     sv="${sv//[[:space:]]/}"
                 fi
-                local sc="?"
-                if [[ -f "${sd}.atlas-origin" ]]; then
-                    while IFS= read -r line; do
-                        if [[ "$line" == category:* ]]; then
-                            sc="${line#category:}"
-                            sc="${sc#"${sc%%[![:space:]]*}"}"
-                            sc="${sc//[[:space:]]/}"
-                            break
-                        fi
-                    done < "${sd}.atlas-origin"
-                fi
+                local sc=""
+                sc=$(_extract_atlas_category "${sd}.atlas-origin")
                 printf "    ${G}●${N} %-30s ${D}v%-8s %s${N}\n" "$sn" "$sv" "$sc"
             fi
         done
@@ -5381,17 +5423,8 @@ _atlas_list() {
             sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
             sv="${sv//[[:space:]]/}"
         fi
-        local sc="?"
-        if [[ -f "${sd}.atlas-origin" ]]; then
-            while IFS= read -r line; do
-                if [[ "$line" == category:* ]]; then
-                    sc="${line#category:}"
-                    sc="${sc#"${sc%%[![:space:]]*}"}"
-                    sc="${sc//[[:space:]]/}"
-                    break
-                fi
-            done < "${sd}.atlas-origin"
-        fi
+        local sc=""
+        sc=$(_extract_atlas_category "${sd}.atlas-origin")
         local fc=0
         shopt -s nullglob dotglob
         local -a files=("$sd"/*)
@@ -5623,17 +5656,8 @@ _atlas_update_metadata() {
             sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="unknown"
             sv="${sv//[[:space:]]/}"
         fi
-        local sc="unknown"
-        if [[ -f "${sd}.atlas-origin" ]]; then
-            while IFS= read -r line; do
-                if [[ "$line" == category:* ]]; then
-                    sc="${line#category:}"
-                    sc="${sc#"${sc%%[![:space:]]*}"}"
-                    sc="${sc//[[:space:]]/}"
-                    break
-                fi
-            done < "${sd}.atlas-origin"
-        fi
+        local sc=""
+        sc=$(_extract_atlas_category "${sd}.atlas-origin")
         if [[ "$first" == "true" ]]; then first=false; else skills_json+=","; fi
         skills_json+="{\"name\":\"$(_json_escape "$sn")\",\"category\":\"$(_json_escape "$sc")\",\"version\":\"$(_json_escape "$sv")\",\"path\":\"$(_json_escape "${ATLAS_SKILLS}/${sn}")\"}"
     done
@@ -6842,9 +6866,9 @@ if command -v ollama &>/dev/null; then
     if systemctl is-active --quiet ollama 2>/dev/null; then
         ol_model=""
         if [[ -f /root/.picoclaw/ollama.conf ]]; then
-            ol_model=$(grep "^OLLAMA_CUSTOM_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d'"' -f2) || ol_model=""
+            ol_model=$(grep "^OLLAMA_CUSTOM_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d"'" -f2) || ol_model=""
             if [[ -z "$ol_model" ]]; then
-                ol_model=$(grep "^OLLAMA_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d'"' -f2) || ol_model="?"
+                ol_model=$(grep "^OLLAMA_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d"'" -f2) || ol_model="?"
             fi
         fi
         printf "\033[0;32m  Ollama: ● running (${ol_model})\033[0m\n"
@@ -7614,14 +7638,14 @@ REBOOTEOF
             if [[ "$is_running" == "true" ]]; then
                 printf "  ${GREEN}${BOLD}Gateway is already running!${NC}\n"
                 echo ""
-                if ask_yn "View live logs now? (Ctrl+C to exit)" "y"; then
+                if [[ "$CONFIG_LOADED" != "true" ]] && ask_yn "View live logs now? (Ctrl+C to exit)" "y"; then
                     echo ""
                     printf "  ${DIM}Attaching to picoclaw-gateway logs... (Ctrl+C to detach)${NC}\n"
                     echo ""
                     journalctl -u picoclaw-gateway -f || true
                 fi
             else
-                if ask_yn "Start PicoClaw gateway now?" "y"; then
+                if [[ "$CONFIG_LOADED" != "true" ]] && ask_yn "Start PicoClaw gateway now?" "y"; then
                     echo ""
                     printf "  ${MAGENTA}🦞${NC} Starting PicoClaw gateway...\n"
                     systemctl start picoclaw-gateway 2>/dev/null || true
