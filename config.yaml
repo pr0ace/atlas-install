@@ -194,7 +194,8 @@ feishu_app_secret: ""
 
 # --- MaixCAM ---
 maixcam_enabled: false
-maixcam_serial: ""
+maixcam_host: "0.0.0.0"                         # Listen host for MaixCAM serial connection
+maixcam_port: 18790                              # Listen port for MaixCAM serial connection
 
 # --------------------------------------------------------------------------
 # Gateway

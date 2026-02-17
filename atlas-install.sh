@@ -4,7 +4,7 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v1.0.4
+#  Version: v1.0.5
 #  Upstream: sipeed/picoclaw
 #  License: MIT (see LICENSE file)
 #
@@ -23,7 +23,7 @@ set -eEuo pipefail
 
 on_error() {
     echo ""
-    printf "  \033[0;31m✘ Failed at line $1 (exit $2)\033[0m\n"
+    printf '  \033[0;31m✘ Failed at line %s (exit %s)\033[0m\n' "$1" "$2"
     printf "  \033[2mCheck output above. Safe to re-run the script.\033[0m\n"
     echo ""
 }
@@ -377,7 +377,7 @@ parse_config() {
         [DC_ENABLED]=1 [DC_TOKEN]=1 [DC_USER_ID]=1 [DC_USERNAME]=1
         [WA_ENABLED]=1
         [FEISHU_ENABLED]=1 [FEISHU_APP_ID]=1 [FEISHU_APP_SECRET]=1
-        [MAIXCAM_ENABLED]=1 [MAIXCAM_SERIAL]=1
+        [MAIXCAM_ENABLED]=1 [MAIXCAM_HOST]=1 [MAIXCAM_PORT]=1
         [SETUP_FTP]=1 [FTP_USER]=1 [FTP_PASS]=1 [FTP_PORT]=1
         [FTP_PASV_MIN]=1 [FTP_PASV_MAX]=1 [FTP_TLS]=1
         [SETUP_SYSTEMD]=1 [SETUP_AUTOBACKUP]=1 [SETUP_ATLAS]=1
@@ -387,6 +387,7 @@ parse_config() {
 
     info "Loading config from: ${config_file}"
 
+    local key value var_name
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Strip leading/trailing whitespace
         line="${line#"${line%%[![:space:]]*}"}"
@@ -398,8 +399,8 @@ parse_config() {
         fi
 
         if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)$ ]]; then
-            local key="${BASH_REMATCH[1]}"
-            local value="${BASH_REMATCH[2]}"
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
 
             value="${value#"${value%%[![:space:]]*}"}"
             value="${value%"${value##*[![:space:]]}"}"
@@ -413,7 +414,7 @@ parse_config() {
                 value="${value%"${value##*[![:space:]]}"}"
             fi
 
-            local var_name="${key^^}"
+            var_name="${key^^}"
 
             if [[ -z "${ALLOWED_KEYS[$var_name]+x}" ]]; then
                 warn "Ignoring unknown config key: ${key}"
@@ -424,12 +425,37 @@ parse_config() {
         fi
     done < "$config_file"
 
+    # Normalize boolean fields to JSON-safe true/false
+    local _bool_var
+    for _bool_var in TG_ENABLED DC_ENABLED WA_ENABLED FS_ENABLED MC_ENABLED \
+                     SETUP_FTP SETUP_PERFORMANCE SETUP_SYSTEMD SETUP_AUTOBACKUP \
+                     SETUP_ATLAS SETUP_OLLAMA FTP_TLS GROQ_EXTRA_ENABLED \
+                     BRAVE_ENABLED FEISHU_ENABLED MAIXCAM_ENABLED; do
+        local -n _bref="$_bool_var" 2>/dev/null || continue
+        case "${_bref,,}" in
+            true|yes|y|1) _bref="true" ;;
+            *)            _bref="false" ;;
+        esac
+    done
+
+    # Map config keys to internal variable names where they differ
+    # Feishu: config uses FEISHU_*, script uses FS_*
+    if [[ -n "${FEISHU_ENABLED:-}" ]]; then FS_ENABLED="${FEISHU_ENABLED}"; fi
+    if [[ -n "${FEISHU_APP_ID:-}" ]]; then FS_APP_ID="${FEISHU_APP_ID}"; fi
+    if [[ -n "${FEISHU_APP_SECRET:-}" ]]; then FS_SECRET="${FEISHU_APP_SECRET}"; fi
+    # MaixCAM: config uses MAIXCAM_*, script uses MC_*
+    if [[ -n "${MAIXCAM_ENABLED:-}" ]]; then MC_ENABLED="${MAIXCAM_ENABLED}"; fi
+    if [[ -n "${MAIXCAM_HOST:-}" ]]; then MC_HOST="${MAIXCAM_HOST}"; fi
+    if [[ -n "${MAIXCAM_PORT:-}" ]]; then MC_PORT="${MAIXCAM_PORT}"; fi
+
     # Validate numeric fields — reset to defaults if malformed
     [[ "$MAX_TOKENS" =~ ^[0-9]+$ ]] || MAX_TOKENS=8192
     [[ "$TEMPERATURE" =~ ^[0-9]+(\.[0-9]+)?$ ]] || TEMPERATURE=0.7
     [[ "$MAX_TOOL_ITER" =~ ^[0-9]+$ ]] || MAX_TOOL_ITER=20
     [[ "$GW_PORT" =~ ^[0-9]+$ ]] || GW_PORT=18790
     [[ "$BRAVE_MAX_RESULTS" =~ ^[0-9]+$ ]] || BRAVE_MAX_RESULTS=5
+    [[ "$MC_PORT" =~ ^[0-9]+$ ]] || MC_PORT=18790
+    [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] || OLLAMA_NUM_CTX=8192
 
     success "Config loaded"
 }
@@ -544,6 +570,9 @@ preflight() {
             success "Debian ${VERSION_ID:-13} (${VERSION_CODENAME:-trixie})"
         else
             warn "Detected: ${PRETTY_NAME:-unknown}. Script targets Debian 13."
+            if [[ "$CONFIG_LOADED" == "true" ]]; then
+                die "Config error: this script targets Debian 13 but detected ${PRETTY_NAME:-unknown}"
+            fi
             ask_yn "Continue anyway?" "n" || exit 1
         fi
     else
@@ -676,6 +705,17 @@ wizard() {
                 warn "ollama_num_ctx (${OLLAMA_NUM_CTX}) below minimum 8192 — resetting to 8192"
                 OLLAMA_NUM_CTX="8192"
             fi
+        fi
+
+        # Validate required LLM fields
+        if [[ -z "$LLM_PROVIDER" ]]; then
+            die "Config error: llm_provider is required"
+        fi
+        if [[ "$LLM_PROVIDER" != "ollama" && -z "$LLM_API_KEY" ]]; then
+            die "Config error: llm_api_key is required for provider '${LLM_PROVIDER}'"
+        fi
+        if [[ -z "$LLM_MODEL" ]]; then
+            die "Config error: llm_model is required"
         fi
 
         return 0
