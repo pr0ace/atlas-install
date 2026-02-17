@@ -190,9 +190,9 @@ WIZARD_MODELS_OLLAMA=(
 # ════════════════════════════════════════════════
 # FORMATTING
 # ════════════════════════════════════════════════
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; MAGENTA='\033[0;35m'
-BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
+RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; MAGENTA=$'\033[0;35m'
+BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
 CK="${GREEN}✔${NC}"; XK="${RED}✘${NC}"; AR="${CYAN}➜${NC}"
 WN="${YELLOW}⚠${NC}"; IN="${BLUE}ℹ${NC}"
 
@@ -370,6 +370,7 @@ parse_config() {
         [INSTALL_FROM]=1 [SETUP_PERFORMANCE]=1
         [LLM_PROVIDER]=1 [LLM_API_KEY]=1 [LLM_MODEL]=1
         [LLM_API_BASE]=1 [MAX_TOKENS]=1 [TEMPERATURE]=1
+        [MAX_TOOL_ITER]=1
         [GROQ_EXTRA_KEY]=1 [GROQ_EXTRA_ENABLED]=1
         [BRAVE_ENABLED]=1 [BRAVE_API_KEY]=1 [BRAVE_MAX_RESULTS]=1
         [TG_ENABLED]=1 [TG_TOKEN]=1 [TG_USER_ID]=1 [TG_USERNAME]=1
@@ -645,6 +646,16 @@ resolve_picoclaw_latest() {
 # WIZARD
 # ════════════════════════════════════════════════
 wizard() {
+    # Non-interactive mode: all values loaded by parse_config, skip wizard entirely
+    if [[ "$CONFIG_LOADED" == "true" ]]; then
+        info "Non-interactive mode — skipping wizard (all values from config)"
+        # Validate FTP password length if FTP is enabled
+        if [[ "${SETUP_FTP}" == "true" && -n "$FTP_PASS" && ${#FTP_PASS} -lt 8 ]]; then
+            die "Config error: ftp_pass must be at least 8 characters"
+        fi
+        return 0
+    fi
+
     banner
     printf "  ${BOLD}Configuration Wizard${NC}\n"
     printf "  ${DIM}Answer the prompts. Press Enter for defaults.${NC}\n"
@@ -761,9 +772,9 @@ wizard() {
             select_model OLLAMA_MODEL "${WIZARD_MODELS_OLLAMA[@]}"
             LLM_MODEL="$OLLAMA_MODEL"
             echo ""
-			printf "  ${DIM}PicoClaw's system prompt uses ~4000+ tokens (skills + tools).${NC}\n"
-			printf "  ${DIM}Minimum: 8192. Use 8192 on 6GB RAM, 16384 on 8GB+, 32768 on 16GB+.${NC}\n"
-			ask "Context window size" OLLAMA_NUM_CTX "8192"
+            printf "  ${DIM}PicoClaw's system prompt uses ~4000+ tokens (skills + tools).${NC}\n"
+            printf "  ${DIM}Minimum: 8192. Use 8192 on 6GB RAM, 16384 on 8GB+, 32768 on 16GB+.${NC}\n"
+            ask "Context window size" OLLAMA_NUM_CTX "8192"
             while true; do
                 if [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] && (( OLLAMA_NUM_CTX >= 8192 )); then
                     break
@@ -2469,10 +2480,10 @@ CFGEOF
     cat > "$BACKUP_META_FILE" << BKCONF
 # PicoClaw Backup Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-BACKUP_DIR="${BACKUP_DIR}"
-BACKUP_MAX_KEEP="${BACKUP_MAX_KEEP}"
-BACKUP_INTERVAL_DAYS="${BACKUP_INTERVAL_DAYS}"
-BACKUP_AUTO_ENABLED="${SETUP_AUTOBACKUP}"
+BACKUP_DIR='${BACKUP_DIR}'
+BACKUP_MAX_KEEP='${BACKUP_MAX_KEEP}'
+BACKUP_INTERVAL_DAYS='${BACKUP_INTERVAL_DAYS}'
+BACKUP_AUTO_ENABLED='${SETUP_AUTOBACKUP}'
 BKCONF
     success "Backup config → ${BACKUP_META_FILE}"
 
@@ -2480,12 +2491,12 @@ BKCONF
     cat > "$FTP_CONF_FILE" << FTPCONF
 # PicoClaw FTP Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FTP_ENABLED="${SETUP_FTP}"
-FTP_USER="${FTP_USER}"
-FTP_PORT="${FTP_PORT}"
-FTP_PASV_MIN="${FTP_PASV_MIN}"
-FTP_PASV_MAX="${FTP_PASV_MAX}"
-FTP_TLS="${FTP_TLS}"
+FTP_ENABLED='${SETUP_FTP}'
+FTP_USER='${FTP_USER}'
+FTP_PORT='${FTP_PORT}'
+FTP_PASV_MIN='${FTP_PASV_MIN}'
+FTP_PASV_MAX='${FTP_PASV_MAX}'
+FTP_TLS='${FTP_TLS}'
 FTPCONF
     success "FTP config → ${FTP_CONF_FILE}"
 
@@ -2493,12 +2504,12 @@ FTPCONF
     cat > "$WA_CONF_FILE" << WACONF
 # PicoClaw WhatsApp Bridge Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-WA_ENABLED="${WA_ENABLED}"
-WA_BRIDGE_PORT="${WA_BRIDGE_PORT}"
-WA_BRIDGE_DIR="${WA_BRIDGE_DIR}"
-WA_BRIDGE_AUTH_DIR="${WA_BRIDGE_AUTH_DIR}"
-WA_BRIDGE_SERVICE="${WA_BRIDGE_SERVICE}"
-WA_USER_ID="${WA_USER_ID}"
+WA_ENABLED='${WA_ENABLED}'
+WA_BRIDGE_PORT='${WA_BRIDGE_PORT}'
+WA_BRIDGE_DIR='${WA_BRIDGE_DIR}'
+WA_BRIDGE_AUTH_DIR='${WA_BRIDGE_AUTH_DIR}'
+WA_BRIDGE_SERVICE='${WA_BRIDGE_SERVICE}'
+WA_USER_ID='${WA_USER_ID}'
 WACONF
     success "WhatsApp config → ${WA_CONF_FILE}"
 
@@ -2506,11 +2517,11 @@ WACONF
     cat > "$OLLAMA_CONF_FILE" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-OLLAMA_ENABLED="${SETUP_OLLAMA}"
-OLLAMA_MODEL="${OLLAMA_MODEL}"
-OLLAMA_NUM_CTX="${OLLAMA_NUM_CTX}"
-OLLAMA_HOST="${OLLAMA_HOST}"
-OLLAMA_PORT="${OLLAMA_PORT}"
+OLLAMA_ENABLED='${SETUP_OLLAMA}'
+OLLAMA_MODEL='${OLLAMA_MODEL}'
+OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
+OLLAMA_HOST='${OLLAMA_HOST}'
+OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
     success "Ollama config → ${OLLAMA_CONF_FILE}"
 }
@@ -3499,12 +3510,12 @@ _save_ftp_conf() {
     cat > "$FTP_CONF" << FTPCONF
 # PicoClaw FTP Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FTP_ENABLED="${FTP_ENABLED}"
-FTP_USER="${FTP_USER}"
-FTP_PORT="${FTP_PORT}"
-FTP_PASV_MIN="${FTP_PASV_MIN}"
-FTP_PASV_MAX="${FTP_PASV_MAX}"
-FTP_TLS="${FTP_TLS}"
+FTP_ENABLED='${FTP_ENABLED}'
+FTP_USER='${FTP_USER}'
+FTP_PORT='${FTP_PORT}'
+FTP_PASV_MIN='${FTP_PASV_MIN}'
+FTP_PASV_MAX='${FTP_PASV_MAX}'
+FTP_TLS='${FTP_TLS}'
 FTPCONF
 }
 
@@ -3524,12 +3535,12 @@ _save_wa_conf() {
     cat > "$WA_CONF" << WACONF
 # PicoClaw WhatsApp Bridge Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-WA_ENABLED="${WA_ENABLED}"
-WA_BRIDGE_PORT="${WA_BRIDGE_PORT}"
-WA_BRIDGE_DIR="${WA_BRIDGE_DIR}"
-WA_BRIDGE_AUTH_DIR="${WA_BRIDGE_AUTH_DIR}"
-WA_BRIDGE_SERVICE="${WA_BRIDGE_SERVICE}"
-WA_USER_ID="${WA_USER_ID}"
+WA_ENABLED='${WA_ENABLED}'
+WA_BRIDGE_PORT='${WA_BRIDGE_PORT}'
+WA_BRIDGE_DIR='${WA_BRIDGE_DIR}'
+WA_BRIDGE_AUTH_DIR='${WA_BRIDGE_AUTH_DIR}'
+WA_BRIDGE_SERVICE='${WA_BRIDGE_SERVICE}'
+WA_USER_ID='${WA_USER_ID}'
 WACONF
 }
 
@@ -3549,12 +3560,12 @@ _save_ollama_conf() {
     cat > "$OLLAMA_CONF" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-OLLAMA_ENABLED="${OLLAMA_ENABLED}"
-OLLAMA_MODEL="${OLLAMA_MODEL}"
-OLLAMA_CUSTOM_MODEL="${OLLAMA_CUSTOM_MODEL}"
-OLLAMA_NUM_CTX="${OLLAMA_NUM_CTX}"
-OLLAMA_HOST="${OLLAMA_HOST}"
-OLLAMA_PORT="${OLLAMA_PORT}"
+OLLAMA_ENABLED='${OLLAMA_ENABLED}'
+OLLAMA_MODEL='${OLLAMA_MODEL}'
+OLLAMA_CUSTOM_MODEL='${OLLAMA_CUSTOM_MODEL}'
+OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
+OLLAMA_HOST='${OLLAMA_HOST}'
+OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
 }
 
@@ -4286,7 +4297,7 @@ cmd_telegram() {
         done
 
         case "$MENU_CHOICE" in
-            0) printf "  ${D}No changes.${N}"; echo "\n"; return 0 ;;
+            0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
             1) _tg_change_token ;;
             2) _tg_add_user ;;
             3) _tg_remove_user ;;
@@ -4308,7 +4319,7 @@ cmd_telegram() {
         done
 
         case "$MENU_CHOICE" in
-            0) printf "  ${D}No changes.${N}"; echo "\n"; return 0 ;;
+            0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
             1) _tg_enable ;;
         esac
     fi
@@ -5107,7 +5118,7 @@ _backup_settings() {
     done
 
     case "$MENU_CHOICE" in
-        0) printf "  ${D}No changes.${N}"; echo "\n"; return 0 ;;
+        0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
         1) _bk_change_max ;;
         2) _bk_change_interval ;;
         3)
@@ -5247,10 +5258,10 @@ _bk_save_conf() {
     cat > "$BACKUP_CONF" << BKCONF
 # PicoClaw Backup Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-BACKUP_DIR="${BACKUP_DIR}"
-BACKUP_MAX_KEEP="${BACKUP_MAX_KEEP}"
-BACKUP_INTERVAL_DAYS="${BACKUP_INTERVAL_DAYS}"
-BACKUP_AUTO_ENABLED="${BACKUP_AUTO_ENABLED}"
+BACKUP_DIR='${BACKUP_DIR}'
+BACKUP_MAX_KEEP='${BACKUP_MAX_KEEP}'
+BACKUP_INTERVAL_DAYS='${BACKUP_INTERVAL_DAYS}'
+BACKUP_AUTO_ENABLED='${BACKUP_AUTO_ENABLED}'
 BKCONF
 }
 
@@ -5766,7 +5777,7 @@ _ftp_interactive() {
     done
 
     case "$MENU_CHOICE" in
-        0) printf "  ${D}No changes.${N}"; echo "\n"; return 0 ;;
+        0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
         1)
             if [[ "$is_running" == "true" ]]; then
                 _ftp_stop
@@ -6389,7 +6400,7 @@ _ollama_interactive() {
     done
 
     case "$MENU_CHOICE" in
-        0) printf "  ${D}No changes.${N}"; echo "\n"; return 0 ;;
+        0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
         1)
             if [[ "$is_running" == "true" ]]; then
                 _ollama_stop

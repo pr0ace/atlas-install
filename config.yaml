@@ -9,11 +9,13 @@
 #   2. Edit config.local.yaml with your values
 #   3. Run installer:   bash atlas-install.sh --config config.local.yaml
 #
-# VALUES:
-#   - Strings must be quoted
+# FORMAT:
+#   - Flat key: value pairs (one per line). No nesting.
+#   - Keys are case-insensitive (uppercased internally to match script variables).
+#   - Strings: quoted ("value") or unquoted (value)
 #   - Booleans: true / false (lowercase, unquoted)
 #   - Numbers: unquoted integers or floats
-#   - Empty string "" means "not set" (installer will prompt)
+#   - Empty string "" means "not set" (installer will use default)
 #
 # SECRETS:
 #   - NEVER commit API keys to version control
@@ -25,7 +27,7 @@
 # --------------------------------------------------------------------------
 # "binary" = download pre-built release (fast, recommended)
 # "source" = clone repo and compile with Go (requires ~10 min + 2GB RAM)
-install_method: "binary"
+install_from: "binary"
 
 # --------------------------------------------------------------------------
 # System Performance Optimizer
@@ -33,7 +35,7 @@ install_method: "binary"
 # Applies deep kernel/network/IO tuning (TCP BBR, sysctl, zram, I/O scheduler,
 # SSD TRIM, tmpfs, DNS, journald, disabled services, IRQ balance, MGLRU, KSM).
 # WARNING: Requires mandatory reboot after installation when enabled.
-performance_optimizer: true
+setup_performance: true
 
 # --------------------------------------------------------------------------
 # LLM Provider
@@ -41,18 +43,17 @@ performance_optimizer: true
 # Supported: "openrouter", "zhipu", "openai", "gemini", "groq", "vllm", "ollama"
 # Note: Anthropic models are routed through OpenRouter (set provider to "openrouter"
 #       and pick a Claude model below).
-llm:
-  provider: "openrouter"
-  api_key: ""
-  api_base: ""                           # Auto-set per provider; override for vllm/custom
-  model: ""                              # See model lists below
+llm_provider: "openrouter"
+llm_api_key: ""
+llm_api_base: ""                               # Auto-set per provider; override for vllm/custom
+llm_model: ""                                  # See model lists below
 
-  # --- Generation defaults ---
-  max_tokens: 8192                       # Max tokens per LLM response
-  temperature: 0.7                       # Sampling temperature (0.0 = deterministic, 1.0 = creative)
-  max_tool_iterations: 20               # Max consecutive tool-call rounds per message
+# --- Generation defaults ---
+max_tokens: 8192                               # Max tokens per LLM response
+temperature: 0.7                               # Sampling temperature (0.0 = deterministic, 1.0 = creative)
+max_tool_iter: 20                              # Max consecutive tool-call rounds per message
 
-# --- Model reference (pick one and paste into llm.model above) ---
+# --- Model reference (pick one and paste into llm_model above) ---
 #
 # OpenRouter models:
 #   "openrouter/quasar-alpha"                      (recommended)
@@ -147,104 +148,83 @@ llm:
 # --------------------------------------------------------------------------
 # Ollama (Local LLM)
 # --------------------------------------------------------------------------
-# Only used when llm.provider is "ollama".
-ollama:
-  enabled: false
-  model: "qwen3:4b"                     # Base model to pull from Ollama registry
-  num_ctx: 8192                          # Context window size (minimum: 8192)
-  host: "127.0.0.1"                      # Ollama API listen address
-  port: 11434                            # Ollama API listen port
+# Only used when llm_provider is "ollama".
+setup_ollama: false
+ollama_model: "qwen3:4b"                      # Base model to pull from Ollama registry
+ollama_num_ctx: 8192                           # Context window size (minimum: 8192)
 
 # --------------------------------------------------------------------------
 # Voice Transcription (Groq Whisper)
 # --------------------------------------------------------------------------
 # Optional Groq API key for voice message transcription.
 # Skipped if primary provider is already Groq (uses same key).
-groq_voice:
-  api_key: ""
+groq_extra_key: ""
 
 # --------------------------------------------------------------------------
 # Web Search (Brave)
 # --------------------------------------------------------------------------
-brave_search:
-  api_key: ""
-  max_results: 5                         # Results per search query (1-20)
+brave_enabled: false
+brave_api_key: ""
+brave_max_results: 5                           # Results per search query (1-20)
 
 # --------------------------------------------------------------------------
 # Channels — Messaging Platforms
 # --------------------------------------------------------------------------
 
 # --- Telegram ---
-telegram:
-  enabled: false
-  token: ""                              # Bot token from @BotFather
-  user_id: ""                            # Your numeric user ID (e.g. "5323045369")
-  username: ""                           # Your username without @ (e.g. "johndoe")
+tg_enabled: false
+tg_token: ""                                   # Bot token from @BotFather
+tg_user_id: ""                                 # Your numeric user ID (e.g. "5323045369")
+tg_username: ""                                # Your username without @ (e.g. "johndoe")
 
 # --- Discord ---
-discord:
-  enabled: false
-  token: ""                              # Bot token from Discord Developer Portal
-  user_id: ""                            # Your numeric user ID
-  username: ""                           # Your username without # (e.g. "johndoe")
+dc_enabled: false
+dc_token: ""                                   # Bot token from Discord Developer Portal
+dc_user_id: ""                                 # Your numeric user ID
+dc_username: ""                                # Your username without # (e.g. "johndoe")
 
 # --- WhatsApp ---
-whatsapp:
-  enabled: false
-  bridge_port: 3001                      # WebSocket bridge port (1-65535)
-  user_id: ""                            # Phone number, international format (e.g. "+14155551234")
+wa_enabled: false
 
 # --- Feishu / Lark ---
-feishu:
-  enabled: false
-  app_id: ""
-  app_secret: ""
-  encrypt_key: ""                        # Optional
-  verification_token: ""                 # Optional
+feishu_enabled: false
+feishu_app_id: ""
+feishu_app_secret: ""
 
 # --- MaixCAM ---
-maixcam:
-  enabled: false
-  host: "0.0.0.0"
-  port: 18790
+maixcam_enabled: false
+maixcam_serial: ""
 
 # --------------------------------------------------------------------------
 # Gateway
 # --------------------------------------------------------------------------
-gateway:
-  host: "0.0.0.0"
-  port: 18790
+gw_host: "0.0.0.0"
+gw_port: 18790
 
 # --------------------------------------------------------------------------
 # FTP Server (vsftpd)
 # --------------------------------------------------------------------------
-ftp:
-  enabled: false
-  user: "root"
-  password: ""                           # Min 8 characters
-  port: 21                               # FTP control port (1-65535)
-  pasv_min_port: 40000                   # Passive mode range start
-  pasv_max_port: 40100                   # Passive mode range end
-  tls: true                              # Enable TLS encryption (self-signed cert)
+setup_ftp: false
+ftp_user: "root"
+ftp_pass: ""                                   # Min 8 characters
+ftp_port: 21                                   # FTP control port (1-65535)
+ftp_pasv_min: 40000                            # Passive mode range start
+ftp_pasv_max: 40100                            # Passive mode range end
+ftp_tls: true                                  # Enable TLS encryption (self-signed cert)
 
 # --------------------------------------------------------------------------
 # Systemd Service
 # --------------------------------------------------------------------------
 # Installs picoclaw-gateway.service + watchdog timer + @reboot cron fallback.
-systemd:
-  enabled: true
+setup_systemd: true
 
 # --------------------------------------------------------------------------
 # Automatic Backups
 # --------------------------------------------------------------------------
-backup:
-  enabled: true
-  interval_days: 6                       # Days between automatic backups
-  max_keep: 18                           # Max snapshots to retain (oldest purged)
+setup_autobackup: true
 
 # --------------------------------------------------------------------------
 # Atlas Skills Repository
 # --------------------------------------------------------------------------
 # Dynamically discovers and installs all skills from github.com/pr0ace/atlas.
-atlas_skills:
-  enabled: true
+setup_atlas: true
