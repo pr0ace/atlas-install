@@ -4,7 +4,7 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v1.0.7
+#  Version: v1.0.8
 #  Upstream: sipeed/picoclaw
 #  License: Proprietary (see LICENSE file)
 #
@@ -551,7 +551,9 @@ _WIZ_CHOICE=""
 # BANNER
 # ════════════════════════════════════════════════
 banner() {
-    clear
+    if [[ "$CONFIG_LOADED" != "true" ]]; then
+        clear
+    fi
     printf "${MAGENTA}${BOLD}\n"
     cat << 'EOF'
     ╔══════════════════════════════════════════════════════════╗
@@ -725,11 +727,35 @@ wizard() {
         if [[ -z "$LLM_PROVIDER" ]]; then
             die "Config error: llm_provider is required"
         fi
+        case "$LLM_PROVIDER" in
+            openrouter|zhipu|openai|gemini|groq|vllm|ollama) ;;
+            *) die "Config error: unsupported llm_provider '${LLM_PROVIDER}' (valid: openrouter, zhipu, openai, gemini, groq, vllm, ollama)" ;;
+        esac
         if [[ "$LLM_PROVIDER" != "ollama" && -z "$LLM_API_KEY" ]]; then
             die "Config error: llm_api_key is required for provider '${LLM_PROVIDER}'"
         fi
         if [[ -z "$LLM_MODEL" ]]; then
             die "Config error: llm_model is required"
+        fi
+
+        # Validate required fields for enabled channels/features
+        if [[ "${TG_ENABLED}" == "true" ]]; then
+            [[ -n "$TG_TOKEN" ]] || die "Config error: tg_token is required when tg_enabled is true"
+            [[ -n "$TG_USER_ID" ]] || die "Config error: tg_user_id is required when tg_enabled is true"
+        fi
+        if [[ "${DC_ENABLED}" == "true" ]]; then
+            [[ -n "$DC_TOKEN" ]] || die "Config error: dc_token is required when dc_enabled is true"
+            [[ -n "$DC_USER_ID" ]] || die "Config error: dc_user_id is required when dc_enabled is true"
+        fi
+        if [[ "${BRAVE_ENABLED}" == "true" ]]; then
+            [[ -n "$BRAVE_API_KEY" ]] || die "Config error: brave_api_key is required when brave_enabled is true"
+        fi
+        if [[ "${GROQ_EXTRA_ENABLED}" == "true" ]]; then
+            [[ -n "$GROQ_EXTRA_KEY" ]] || die "Config error: groq_extra_key is required when groq_extra_enabled is true"
+        fi
+        if [[ "${FEISHU_ENABLED}" == "true" ]]; then
+            [[ -n "$FS_APP_ID" ]] || die "Config error: fs_app_id is required when feishu_enabled is true"
+            [[ -n "$FS_SECRET" ]] || die "Config error: fs_secret is required when feishu_enabled is true"
         fi
 
         # Auto-link: ollama provider requires setup_ollama
@@ -868,7 +894,7 @@ wizard() {
                     break
                 fi
                 warn "Context window must be a number >= 8192 (PicoClaw needs ~4000 tokens for system prompt)"
-                ask "Context window size" OLLAMA_NUM_CTX "4096"
+                ask "Context window size" OLLAMA_NUM_CTX "8192"
             done
             echo ""
             warn "Models are downloaded after installation (~0.4-5GB depending on model)."
@@ -2749,7 +2775,9 @@ WASVCEOF
     success "Service: ${WA_BRIDGE_SERVICE}.service (enabled)"
 
     # ── Auto-login: launch QR scan if no existing session ──
-    if [[ "$has_existing_session" != "true" ]]; then
+    if [[ "$has_existing_session" != "true" && "$CONFIG_LOADED" == "true" ]]; then
+        info "Non-interactive mode — skipping QR login. Run: picoclaw whatsapp login"
+    elif [[ "$has_existing_session" != "true" ]]; then
         separator
         printf "  ${YELLOW}${BOLD}WhatsApp QR Login Required${NC}\n"
         echo ""
@@ -2979,15 +3007,19 @@ MFEOF
     fi
 
     # ── j. Update ollama.conf with custom model name ──
+    local safe_model safe_custom safe_host
+    safe_model="$(shell_escape "$OLLAMA_MODEL")"
+    safe_custom="$(shell_escape "$custom_model_name")"
+    safe_host="$(shell_escape "$OLLAMA_HOST")"
     cat > "$OLLAMA_CONF_FILE" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Updated by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-OLLAMA_ENABLED="${SETUP_OLLAMA}"
-OLLAMA_MODEL="${OLLAMA_MODEL}"
-OLLAMA_CUSTOM_MODEL="${custom_model_name}"
-OLLAMA_NUM_CTX="${OLLAMA_NUM_CTX}"
-OLLAMA_HOST="${OLLAMA_HOST}"
-OLLAMA_PORT="${OLLAMA_PORT}"
+OLLAMA_ENABLED='${SETUP_OLLAMA}'
+OLLAMA_MODEL='${safe_model}'
+OLLAMA_CUSTOM_MODEL='${safe_custom}'
+OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
+OLLAMA_HOST='${safe_host}'
+OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
     success "Ollama config updated → ${OLLAMA_CONF_FILE}"
 
