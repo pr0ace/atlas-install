@@ -8,6 +8,8 @@ Connects LLM providers (OpenRouter, OpenAI, Gemini, Groq, Zhipu, Ollama, vLLM) t
 
 ## Quick Start
 
+### One-Line Install (curl)
+
 **SSH into your Debian 13 server as root** and run:
 
 ```bash
@@ -16,25 +18,28 @@ bash <(curl -fsSL https://raw.githubusercontent.com/pr0ace/atlas/master/atlas-in
 
 That's it. The interactive wizard handles everything else.
 
-### With a pre-filled config (skip wizard prompts):
+### Git Clone Install
+
+Clone the repository and run the installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/pr0ace/atlas/master/atlas-install.sh -o /tmp/atlas-install.sh \
-  && curl -fsSL https://raw.githubusercontent.com/pr0ace/atlas/master/config.yaml -o /tmp/config.yaml \
-  && bash /tmp/atlas-install.sh --config /tmp/config.yaml
+git clone https://github.com/pr0ace/atlas-install.git && cd atlas-install && bash atlas-install.sh
 ```
 
 ---
 
-## Requirements
+## Prerequisites
 
-| Requirement | Minimum |
+Before installation, ensure your system meets these requirements:
+
+| Requirement | Details |
 |---|---|
-| OS | Debian 13 (Trixie) |
-| User | root |
-| RAM | 512 MB (2 GB+ for Ollama) |
-| Disk | 2 GB free |
-| Network | Internet access |
+| **OS** | Debian 13 (Trixie) - other distros not supported |
+| **User** | Root access required |
+| **RAM** | 1 GB minimum (2 GB+ recommended for Ollama) |
+| **Disk** | 10 GB+ free space |
+| **Network** | Active internet connection |
+| **Ports** | 18790 (gateway), 21 (FTP, if enabled) |
 
 ---
 
@@ -56,16 +61,27 @@ curl -fsSL https://raw.githubusercontent.com/pr0ace/atlas/master/atlas-install.s
 
 ## Management CLI
 
-After installation, use the `picoclaw` command:
+After installation, use the `picoclaw` command to manage your gateway:
 
-```
-picoclaw start|stop|restart|logs|status    # Gateway control
-picoclaw config edit|model|telegram        # Configuration
-picoclaw whatsapp login|logout|start|stop  # WhatsApp bridge
-picoclaw ollama status|model|list|pull     # Local LLM
-picoclaw backup create|list|settings       # Backup management
+| Command | Description |
+|---|---|
+| `picoclaw start` | Start the PicoClaw gateway service |
+| `picoclaw stop` | Stop the gateway service |
+| `picoclaw restart` | Restart the gateway (apply config changes) |
+| `picoclaw logs` | View real-time gateway logs |
+| `picoclaw status` | Check gateway service status |
+| `picoclaw backup` | Create/manage configuration backups |
+| `picoclaw model` | Switch LLM provider or model |
+| `picoclaw config` | Edit gateway configuration |
+
+**Advanced Commands:**
+
+```bash
+picoclaw whatsapp login|logout|start|stop  # WhatsApp bridge control
+picoclaw ollama status|model|list|pull     # Local LLM management
+picoclaw backup create|list|settings       # Backup operations
 picoclaw atlas status|list|update          # Skills management
-picoclaw ftp status|start|stop|password    # FTP server
+picoclaw ftp status|start|stop|password    # FTP server control
 ```
 
 ---
