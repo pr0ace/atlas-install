@@ -4,7 +4,7 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v1.0.10
+#  Version: v2.0.0
 #  Upstream: sipeed/picoclaw
 #  License: Proprietary (see LICENSE file)
 #
