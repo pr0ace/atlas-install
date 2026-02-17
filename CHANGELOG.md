@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v2.0.0] - 2026-02-17
+
+### Breaking Changes
+- Full refactor across T1–T5: modularisation, error handling, idempotency, dry-run mode, and test coverage
+- Script structure and flag interface changed; existing callers may need updating
+
+### Added
+- Modular function design (T1)
+- Robust error handling and rollback (T2)
+- Idempotent install logic (T3)
+- `--dry-run` / `-n` flag (T4)
+- Automated test suite (T5)
+
 ## [v1.0.0] - 2026-02-11
 
 ### Added
@@ -51,4 +64,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - JSON-safe input sanitization (escape `\` `"` and strip control chars) to prevent `config.json` corruption
 - Fixed Telegram wizard typo (was `DC_` instead of `TG_`)
 
+[v2.0.0]: https://github.com/pr0ace/atlas-install/releases/tag/v2.0.0
 [v1.0.0]: https://github.com/pr0ace/atlas-install/releases/tag/v1.0.0
