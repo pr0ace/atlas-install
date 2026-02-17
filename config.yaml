@@ -9,11 +9,13 @@
 #   2. Edit config.local.yaml with your values
 #   3. Run installer:   bash atlas-install.sh --config config.local.yaml
 #
-# VALUES:
-#   - Strings must be quoted
+# FORMAT:
+#   - Flat key: value pairs (one per line). No nesting.
+#   - Keys are case-insensitive (uppercased internally to match script variables).
+#   - Strings: quoted ("value") or unquoted (value)
 #   - Booleans: true / false (lowercase, unquoted)
 #   - Numbers: unquoted integers or floats
-#   - Empty string "" means "not set" (installer will prompt)
+#   - Empty string "" means "not set" (installer will use default)
 #
 # SECRETS:
 #   - NEVER commit API keys to version control
@@ -25,7 +27,7 @@
 # --------------------------------------------------------------------------
 # "binary" = download pre-built release (fast, recommended)
 # "source" = clone repo and compile with Go (requires ~10 min + 2GB RAM)
-install_method: "binary"
+install_from: "binary"
 
 # --------------------------------------------------------------------------
 # System Performance Optimizer
@@ -33,7 +35,7 @@ install_method: "binary"
 # Applies deep kernel/network/IO tuning (TCP BBR, sysctl, zram, I/O scheduler,
 # SSD TRIM, tmpfs, DNS, journald, disabled services, IRQ balance, MGLRU, KSM).
 # WARNING: Requires mandatory reboot after installation when enabled.
-performance_optimizer: true
+setup_performance: true
 
 # --------------------------------------------------------------------------
 # LLM Provider
@@ -41,93 +43,92 @@ performance_optimizer: true
 # Supported: "openrouter", "zhipu", "openai", "gemini", "groq", "vllm", "ollama"
 # Note: Anthropic models are routed through OpenRouter (set provider to "openrouter"
 #       and pick a Claude model below).
-llm:
-  provider: "openrouter"
-  api_key: ""
-  api_base: ""                           # Auto-set per provider; override for vllm/custom
-  model: ""                              # See model lists below
+llm_provider: "openrouter"
+llm_api_key: ""
+llm_api_base: ""                               # Auto-set per provider; override for vllm/custom
+llm_model: ""                                  # See model lists below
 
-  # --- Generation defaults ---
-  max_tokens: 8192                       # Max tokens per LLM response
-  temperature: 0.7                       # Sampling temperature (0.0 = deterministic, 1.0 = creative)
-  max_tool_iterations: 20               # Max consecutive tool-call rounds per message
+# --- Generation defaults ---
+max_tokens: 8192                               # Max tokens per LLM response
+temperature: 0.7                               # Sampling temperature (0.0 = deterministic, 1.0 = creative)
+max_tool_iter: 20                              # Max consecutive tool-call rounds per message
 
-# --- Model reference (pick one and paste into llm.model above) ---
+# --- Model reference (pick one and paste into llm_model above) ---
 #
 # OpenRouter models:
-#   "anthropic/claude-sonnet-4.5"                  (recommended)
-#   "anthropic/claude-opus-4.6"
-#   "anthropic/claude-opus-4.5"
-#   "anthropic/claude-sonnet-4"
-#   "openai/gpt-5.2"
-#   "openai/gpt-5.1"
-#   "openai/gpt-5"
-#   "openai/gpt-5-mini"
-#   "google/gemini-3-pro-preview"
-#   "google/gemini-3-flash-preview"
-#   "google/gemini-2.5-flash"
-#   "google/gemini-2.5-pro"
-#   "deepseek/deepseek-r1"
-#   "deepseek/deepseek-v3-0324"
-#   "meta-llama/llama-4-maverick"
-#   "qwen/qwen3-235b-a22b"
+#   "anthropic/claude-sonnet-4.5"                  (recommended, best coding+agents)
+#   "anthropic/claude-opus-4.6"                    (most powerful)
+#   "anthropic/claude-opus-4.5"                    (strong all-rounder)
+#   "anthropic/claude-sonnet-4"                    (balanced price/performance)
+#   "openai/gpt-5.2"                              (OpenAI flagship)
+#   "openai/gpt-5.1"                              (configurable reasoning)
+#   "openai/gpt-5"                                (previous gen reasoning)
+#   "openai/gpt-5-mini"                           (fast, cost-efficient)
+#   "google/gemini-3-pro-preview"                  (Google most intelligent)
+#   "google/gemini-3-flash-preview"                (Google fast+balanced)
+#   "google/gemini-2.5-flash"                      (Google best price/perf)
+#   "google/gemini-2.5-pro"                        (Google advanced thinking)
+#   "deepseek/deepseek-r1"                         (reasoning, open-weight)
+#   "deepseek/deepseek-v3-0324"                    (fast general purpose)
+#   "meta-llama/llama-4-maverick"                  (Meta latest MoE)
+#   "qwen/qwen3-235b-a22b"                        (Alibaba frontier)
 #
 # Anthropic (via OpenRouter):
-#   "anthropic/claude-sonnet-4.5"                  (recommended)
-#   "anthropic/claude-opus-4.6"
-#   "anthropic/claude-opus-4.5"
-#   "anthropic/claude-opus-4.1"
-#   "anthropic/claude-opus-4"
-#   "anthropic/claude-sonnet-4"
-#   "anthropic/claude-haiku-4.5"
+#   "anthropic/claude-sonnet-4.5"                  (recommended, best coding+agents)
+#   "anthropic/claude-opus-4.6"                    (most powerful)
+#   "anthropic/claude-opus-4.5"                    (strong all-rounder)
+#   "anthropic/claude-opus-4.1"                    (capable reasoning)
+#   "anthropic/claude-opus-4"                      (first Opus 4)
+#   "anthropic/claude-sonnet-4"                    (balanced, widely used)
+#   "anthropic/claude-haiku-4.5"                   (fastest, cheapest)
 #
 # Zhipu models:
-#   "glm-5"                                        (recommended)
-#   "glm-4.7"
-#   "glm-4.7-flashx"
-#   "glm-4.7-flash"
-#   "glm-4.6"
-#   "glm-4.5"
-#   "glm-4.5-x"
-#   "glm-4.5-air"
-#   "glm-4.5-airx"
-#   "glm-4.5-flash"
-#   "glm-4-32b-0414-128k"
-#   "glm-4.6v"
-#   "glm-4.6v-flashx"
-#   "glm-4.5v"
-#   "glm-4.6v-flash"
+#   "glm-5"                                        (recommended, 744B MoE flagship)
+#   "glm-4.7"                                      (355B MoE, coding+reasoning)
+#   "glm-4.7-flashx"                               (fast+cheap, extended FlashX)
+#   "glm-4.7-flash"                                (30B MoE, free tier)
+#   "glm-4.6"                                      (357B, 200K context)
+#   "glm-4.5"                                      (355B MoE, reasoning+agents)
+#   "glm-4.5-x"                                    (extended context)
+#   "glm-4.5-air"                                  (106B MoE, balanced cost/perf)
+#   "glm-4.5-airx"                                 (extended context Air)
+#   "glm-4.5-flash"                                (free tier, fast)
+#   "glm-4-32b-0414-128k"                          (open-weight 32B, 128K context)
+#   "glm-4.6v"                                     (106B vision, tool use)
+#   "glm-4.6v-flashx"                              (fast+cheap vision)
+#   "glm-4.5v"                                     (vision multimodal)
+#   "glm-4.6v-flash"                               (9B vision, free tier)
 #
 # OpenAI models:
-#   "gpt-5.2"                                      (recommended)
-#   "gpt-5.1"
-#   "gpt-5"
-#   "gpt-5-mini"
-#   "gpt-5-nano"
-#   "gpt-4.1"
-#   "gpt-4.1-mini"
-#   "gpt-4.1-nano"
-#   "o3"
-#   "o4-mini"
-#   "gpt-4o"
+#   "gpt-5.2"                                     (recommended, flagship)
+#   "gpt-5.1"                                     (configurable reasoning)
+#   "gpt-5"                                       (previous gen reasoning)
+#   "gpt-5-mini"                                  (fast, cost-efficient)
+#   "gpt-5-nano"                                  (fastest, cheapest GPT-5)
+#   "gpt-4.1"                                     (smartest non-reasoning)
+#   "gpt-4.1-mini"                                (smaller, faster GPT-4.1)
+#   "gpt-4.1-nano"                                (fastest GPT-4.1)
+#   "o3"                                          (reasoning, complex tasks)
+#   "o4-mini"                                     (fast cost-efficient reasoning)
+#   "gpt-4o"                                      (legacy, still available)
 #
 # Gemini models:
-#   "gemini-2.5-flash"                             (recommended)
-#   "gemini-3-pro-preview"
-#   "gemini-3-flash-preview"
-#   "gemini-2.5-pro"
-#   "gemini-2.5-flash-lite"
-#   "gemini-2.0-flash"
+#   "gemini-2.5-flash"                             (recommended, best price/perf)
+#   "gemini-3-pro-preview"                         (most intelligent, preview)
+#   "gemini-3-flash-preview"                       (fast+balanced, preview)
+#   "gemini-2.5-pro"                               (advanced thinking, stable)
+#   "gemini-2.5-flash-lite"                        (ultra-fast, cheapest)
+#   "gemini-2.0-flash"                             (previous gen)
 #
 # Groq models:
-#   "llama-3.3-70b-versatile"                      (recommended)
-#   "llama-3.1-8b-instant"
-#   "openai/gpt-oss-120b"
-#   "openai/gpt-oss-20b"
-#   "meta-llama/llama-4-maverick-17b-128e-instruct"
-#   "meta-llama/llama-4-scout-17b-16e-instruct"
-#   "qwen/qwen3-32b"
-#   "moonshotai/kimi-k2-instruct-0905"
+#   "llama-3.3-70b-versatile"                      (recommended, 280 t/s)
+#   "llama-3.1-8b-instant"                         (560 t/s, ultra-fast)
+#   "openai/gpt-oss-120b"                          (OpenAI open-weight, 500 t/s)
+#   "openai/gpt-oss-20b"                           (OpenAI open-weight, 1000 t/s)
+#   "meta-llama/llama-4-maverick-17b-128e-instruct" (Llama 4 MoE, 600 t/s)
+#   "meta-llama/llama-4-scout-17b-16e-instruct"   (Llama 4 Scout, 750 t/s)
+#   "qwen/qwen3-32b"                              (Alibaba 32B, 400 t/s)
+#   "moonshotai/kimi-k2-instruct-0905"            (Moonshot Kimi K2, 200 t/s)
 #
 # Ollama models (local):
 #   "qwen3:4b"          2.5GB — best all-round intelligence, dual-mode, 100+ languages  (recommended)
@@ -147,104 +148,85 @@ llm:
 # --------------------------------------------------------------------------
 # Ollama (Local LLM)
 # --------------------------------------------------------------------------
-# Only used when llm.provider is "ollama".
-ollama:
-  enabled: false
-  model: "qwen3:4b"                     # Base model to pull from Ollama registry
-  num_ctx: 8192                          # Context window size (minimum: 8192)
-  host: "127.0.0.1"                      # Ollama API listen address
-  port: 11434                            # Ollama API listen port
+# Only used when llm_provider is "ollama".
+setup_ollama: false
+ollama_model: "qwen3:4b"                      # Base model to pull from Ollama registry
+ollama_num_ctx: 8192                           # Context window size (minimum: 8192)
 
 # --------------------------------------------------------------------------
 # Voice Transcription (Groq Whisper)
 # --------------------------------------------------------------------------
 # Optional Groq API key for voice message transcription.
 # Skipped if primary provider is already Groq (uses same key).
-groq_voice:
-  api_key: ""
+groq_extra_enabled: false                      # Set to true to enable Groq Whisper voice transcription
+groq_extra_key: ""
 
 # --------------------------------------------------------------------------
 # Web Search (Brave)
 # --------------------------------------------------------------------------
-brave_search:
-  api_key: ""
-  max_results: 5                         # Results per search query (1-20)
+brave_enabled: false
+brave_api_key: ""
+brave_max_results: 5                           # Results per search query (1-20)
 
 # --------------------------------------------------------------------------
 # Channels — Messaging Platforms
 # --------------------------------------------------------------------------
 
 # --- Telegram ---
-telegram:
-  enabled: false
-  token: ""                              # Bot token from @BotFather
-  user_id: ""                            # Your numeric user ID (e.g. "5323045369")
-  username: ""                           # Your username without @ (e.g. "johndoe")
+tg_enabled: false
+tg_token: ""                                   # Bot token from @BotFather
+tg_user_id: ""                                 # Your numeric user ID (e.g. "5323045369")
+tg_username: ""                                # Your username without @ (e.g. "johndoe")
 
 # --- Discord ---
-discord:
-  enabled: false
-  token: ""                              # Bot token from Discord Developer Portal
-  user_id: ""                            # Your numeric user ID
-  username: ""                           # Your username without # (e.g. "johndoe")
+dc_enabled: false
+dc_token: ""                                   # Bot token from Discord Developer Portal
+dc_user_id: ""                                 # Your numeric user ID
+dc_username: ""                                # Your username without # (e.g. "johndoe")
 
 # --- WhatsApp ---
-whatsapp:
-  enabled: false
-  bridge_port: 3001                      # WebSocket bridge port (1-65535)
-  user_id: ""                            # Phone number, international format (e.g. "+14155551234")
+wa_enabled: false
 
 # --- Feishu / Lark ---
-feishu:
-  enabled: false
-  app_id: ""
-  app_secret: ""
-  encrypt_key: ""                        # Optional
-  verification_token: ""                 # Optional
+feishu_enabled: false
+feishu_app_id: ""
+feishu_app_secret: ""
 
 # --- MaixCAM ---
-maixcam:
-  enabled: false
-  host: "0.0.0.0"
-  port: 18790
+maixcam_enabled: false
+maixcam_host: "0.0.0.0"                         # Listen host for MaixCAM serial connection
+maixcam_port: 18790                              # Listen port for MaixCAM serial connection
 
 # --------------------------------------------------------------------------
 # Gateway
 # --------------------------------------------------------------------------
-gateway:
-  host: "0.0.0.0"
-  port: 18790
+gw_host: "0.0.0.0"
+gw_port: 18790
 
 # --------------------------------------------------------------------------
 # FTP Server (vsftpd)
 # --------------------------------------------------------------------------
-ftp:
-  enabled: false
-  user: "root"
-  password: ""                           # Min 8 characters
-  port: 21                               # FTP control port (1-65535)
-  pasv_min_port: 40000                   # Passive mode range start
-  pasv_max_port: 40100                   # Passive mode range end
-  tls: true                              # Enable TLS encryption (self-signed cert)
+setup_ftp: false
+ftp_user: "root"
+ftp_pass: ""                                   # Min 8 characters
+ftp_port: 21                                   # FTP control port (1-65535)
+ftp_pasv_min: 40000                            # Passive mode range start
+ftp_pasv_max: 40100                            # Passive mode range end
+ftp_tls: true                                  # Enable TLS encryption (self-signed cert)
 
 # --------------------------------------------------------------------------
 # Systemd Service
 # --------------------------------------------------------------------------
 # Installs picoclaw-gateway.service + watchdog timer + @reboot cron fallback.
-systemd:
-  enabled: true
+setup_systemd: true
 
 # --------------------------------------------------------------------------
 # Automatic Backups
 # --------------------------------------------------------------------------
-backup:
-  enabled: true
-  interval_days: 6                       # Days between automatic backups
-  max_keep: 18                           # Max snapshots to retain (oldest purged)
+setup_autobackup: true
 
 # --------------------------------------------------------------------------
 # Atlas Skills Repository
 # --------------------------------------------------------------------------
 # Dynamically discovers and installs all skills from github.com/pr0ace/atlas.
-atlas_skills:
-  enabled: true
+setup_atlas: true

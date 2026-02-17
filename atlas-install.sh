@@ -1,115 +1,36 @@
 #!/usr/bin/env bash
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  PicoClaw Full Installer — Debian 13 (Trixie)               ║
-# ║  Root · Full access · 24/7 · Reboot-safe · Config wizard    ║
-# ╠══════════════════════════════════════════════════════════════╣
-# ║  Verified against upstream source 2026-02-11:               ║
-# ║    PicoClaw:  v0.0.1 (sipeed/picoclaw, 2026-02-09)         ║
-# ║    Go:        1.26.0 (go.mod requires 1.24.0 — compat OK)  ║
-# ║    Config:    pkg/config/config.go + config.example.json    ║
-# ║    Makefile:  build→build/picoclaw-linux-<arch> + symlink   ║
-# ║    Providers: openrouter anthropic openai gemini zhipu      ║
-# ║               groq vllm                                     ║
-# ║    Channels:  telegram discord whatsapp feishu maixcam      ║
-# ║    Keys:      snake_case (allow_from api_key api_base       ║
-# ║               app_id app_secret encrypt_key                 ║
-# ║               verification_token bridge_url)                ║
-# ╠══════════════════════════════════════════════════════════════╣
-# ║  Fixes applied:                                              ║
-# ║    • StartLimitIntervalSec in [Unit] not [Service]          ║
-# ║    • Zhipu api_base set explicitly                          ║
-# ║    • API key prompts never show [default] brackets          ║
-# ║    • WhatsApp disabled unless bridge running                ║
-# ║    • Full system upgrade before packages                    ║
-# ║    • Trap prints failing line instead of silent exit        ║
-# ║    • SHA256 checksums for binaries + Go                     ║
-# ║    • set -eEuo pipefail for proper ERR trap propagation     ║
-# ║    • Model selection list per provider (latest models)      ║
-# ║    • Fixed declare -g vs local variable scoping bug         ║
-# ║    • All wizard variables use global scope consistently     ║
-# ║    • All menus validate input and re-prompt on bad choice   ║
-# ║    • verify() uses rc-capture to avoid ERR trap             ║
-# ║    • All systemctl calls guarded with || true               ║
-# ║    • ALL [[ ]] && cmd patterns replaced with if/then/fi     ║
-# ║      to prevent set -e from killing on false conditions     ║
-# ║    • Telegram allow_from: "id|username" composite format    ║
-# ║      (PicoClaw sends composite key; exact match required)   ║
-# ║    • Groq provider: key placed in openrouter slot with      ║
-# ║      Groq api_base because PicoClaw CreateProvider() only   ║
-# ║      routes to Groq on model names containing "groq"        ║
-# ║      (no actual Groq model name matches that pattern)       ║
-# ║    • Anthropic direct: WARN — PicoClaw uses /chat/          ║
-# ║      completions (OpenAI-compat) but Anthropic needs        ║
-# ║      /v1/messages. Script warns user to use OpenRouter      ║
-# ║      for Claude models instead of direct Anthropic.         ║
-# ║    • Discord allow_from: same composite format fix          ║
-# ║    • JSON-safe input sanitization (escape \ " and strip     ║
-# ║      control chars) to prevent config.json corruption       ║
-# ║    • Unified picoclaw CLI: all commands via picoclaw CMD    ║
-# ║    • Fixed Telegram wizard typo (was DC_ instead of TG_)   ║
-# ║    • picoclaw model: interactive model switcher per         ║
-# ║      provider (reads config, shows available models,        ║
-# ║      excludes current, writes new model, restarts)          ║
-# ║    • picoclaw telegram: interactive Telegram management     ║
-# ║      (enable/disable, change token, add/remove users,       ║
-# ║      protects initial user from removal, restarts on        ║
-# ║      change only)                                           ║
-# ║    • picoclaw backup: full snapshot of config, workspace,   ║
-# ║      binary, wrapper, systemd units, cron, profile into     ║
-# ║      /root/backup/backup_MMddyy_HHmmss/ with automatic     ║
-# ║      purge of oldest backups beyond configurable max (18)   ║
-# ║    • Auto-backup cron: configurable interval in days (6)    ║
-# ║      via /etc/cron.d/picoclaw-autobackup calling            ║
-# ║      picoclaw backup --auto                                 ║
-# ║    • Backup metadata: backup.meta JSON in each snapshot     ║
-# ║      tracks version, timestamp, trigger (manual/auto)       ║
-# ║    • System performance optimizer: TCP BBR, sysctl tuning,  ║
-# ║      memory management, I/O scheduler, file limits, DNS,    ║
-# ║      zram, tmpfs, SSD TRIM, journald, disabled bloat        ║
-# ║    • Forced reboot after performance optimization to fully  ║
-# ║      activate all kernel tweaks; gateway auto-starts if     ║
-# ║      systemd service was enabled                            ║
-# ║    • Atlas skills repository integration: dynamic discovery ║
-# ║      via GitHub API, installs all skills from pr0ace/atlas  ║
-# ║      at install time (categories auto-detected, SKILL.md    ║
-# ║      required), with picoclaw atlas CLI for management      ║
-# ║    • FTP server (vsftpd): optional full-access FTP server   ║
-# ║      with configurable username, password, TLS optional,    ║
-# ║      chroot to / for full filesystem access, systemd        ║
-# ║      managed, picoclaw ftp CLI for management               ║
-# ║    • WhatsApp bridge: full Baileys/Node.js bridge install,  ║
-# ║      Node.js 20+ auto-provisioned, systemd-managed bridge   ║
-# ║      service with After= dependency so bridge starts before ║
-# ║      gateway, interactive QR login via picoclaw whatsapp    ║
-# ║      login, session persistence in whatsapp-auth/, backup   ║
-# ║      of auth state, CLI management (start/stop/restart/     ║
-# ║      login/logout/status/logs/enable/disable)               ║
-# ║    • WhatsApp auto-login: if WhatsApp is enabled and no     ║
-# ║      session exists, installer auto-launches QR login       ║
-# ║      before starting the gateway service                    ║
-# ║    • WhatsApp bridge auto-exit: bridge process exits        ║
-# ║      automatically after successful connection during       ║
-# ║      interactive login (no manual Ctrl+C needed)            ║
-# ║    • FTP default to Y with root as default username         ║
-# ║    • Ollama local LLM: optional local inference server,     ║
-# ║      auto-installs ollama, pulls selected model, custom     ║
-# ║      Modelfile with num_ctx for RAM control, routes via     ║
-# ║      vllm provider slot (OpenAI-compat /v1 endpoint),      ║
-# ║      systemd-managed, picoclaw ollama CLI for management    ║
-# ╚══════════════════════════════════════════════════════════════╝
+# ═══════════════════════════════════════════════════════════════
+#  Atlas Installer — Full-featured PicoClaw Gateway Setup
+#  Target: Debian 13 (Trixie) — Root access required
+# ═══════════════════════════════════════════════════════════════
 #
-# Usage:  bash setup.sh
-# Must run as root on Debian 13.
+#  Version: v1.0.10
+#  Upstream: sipeed/picoclaw
+#  License: Proprietary (see LICENSE file)
+#
+#  Usage:
+#    bash atlas-install.sh                   # Interactive wizard
+#    bash atlas-install.sh --config <yaml>   # Non-interactive
+#
+#  Features: Multi-provider LLM gateway, Telegram/Discord/WhatsApp
+#            channels, FTP server, WhatsApp bridge, Ollama support,
+#            auto-backup, performance optimization, Atlas skills
+# ═══════════════════════════════════════════════════════════════
 
 set -eEuo pipefail
 
 on_error() {
     echo ""
-    echo -e "  \033[0;31m✘ Failed at line $1 (exit $2)\033[0m"
-    echo -e "  \033[2mCheck output above. Safe to re-run the script.\033[0m"
+    printf '  \033[0;31m✘ Failed at line %s (exit %s)\033[0m\n' "$1" "$2"
+    printf "  \033[2mCheck output above. Safe to re-run the script.\033[0m\n"
     echo ""
 }
 trap 'on_error ${LINENO} $?' ERR
+
+# ════════════════════════════════════════════════
+# CACHED SYSCALLS — computed once for performance
+# ════════════════════════════════════════════════
+readonly ARCH=$(uname -m)
 
 # ════════════════════════════════════════════════
 # CONSTANTS — verified from source + releases API
@@ -162,20 +83,125 @@ OLLAMA_PORT="11434"
 OLLAMA_API_BASE="http://127.0.0.1:11434/v1"
 
 # ════════════════════════════════════════════════
+# WIZARD MODEL LISTS
+# Curated subset for first-time install wizard.
+# CLI wrapper has a broader list for model switching
+# after installation (see CLI_MODELS_* in the heredoc).
+# ════════════════════════════════════════════════
+WIZARD_MODELS_OPENROUTER=(
+  "anthropic/claude-sonnet-4.5"    "latest Sonnet, best coding+agents"
+  "anthropic/claude-opus-4.6"      "most powerful, complex challenges"
+  "anthropic/claude-opus-4.5"      "strong all-rounder"
+  "anthropic/claude-sonnet-4"      "balanced price/performance"
+  "openai/gpt-5.2"                 "OpenAI flagship, coding+agentic"
+  "openai/gpt-5.1"                 "configurable reasoning effort"
+  "openai/gpt-5"                   "previous gen reasoning"
+  "openai/gpt-5-mini"              "fast, cost-efficient GPT-5"
+  "google/gemini-3-pro-preview"    "Google most intelligent"
+  "google/gemini-3-flash-preview"  "Google fast+balanced"
+  "google/gemini-2.5-flash"        "Google best price/perf"
+  "google/gemini-2.5-pro"          "Google advanced thinking"
+  "deepseek/deepseek-r1"           "reasoning, open-weight"
+  "deepseek/deepseek-v3-0324"      "fast general purpose"
+  "meta-llama/llama-4-maverick"    "Meta latest MoE"
+  "qwen/qwen3-235b-a22b"           "Alibaba frontier"
+)
+
+WIZARD_MODELS_ZHIPU=(
+  "glm-5"                  "744B MoE (40B active), flagship, agentic engineering"
+  "glm-4.7"               "355B MoE (32B active), coding+reasoning+agents"
+  "glm-4.7-flashx"        "fast+cheap, extended FlashX"
+  "glm-4.7-flash"         "30B MoE (3B active), free tier"
+  "glm-4.6"              "357B, 200K context, agentic+coding"
+  "glm-4.5"              "355B MoE, reasoning+agents"
+  "glm-4.5-x"            "extended context GLM-4.5"
+  "glm-4.5-air"          "106B MoE (12B active), balanced cost/perf"
+  "glm-4.5-airx"         "extended context Air"
+  "glm-4.5-flash"        "free tier, fast"
+  "glm-4-32b-0414-128k"  "open-weight 32B, 128K context"
+  "glm-4.6v"             "106B vision, 128K ctx, native tool use"
+  "glm-4.6v-flashx"      "fast+cheap vision"
+  "glm-4.5v"             "vision multimodal"
+  "glm-4.6v-flash"       "9B vision, free tier"
+)
+
+WIZARD_MODELS_OPENROUTER_ANTHROPIC=(
+  "anthropic/claude-sonnet-4.5"     "latest Sonnet, best coding+agents"
+  "anthropic/claude-opus-4.6"       "most powerful, complex challenges"
+  "anthropic/claude-opus-4.5"       "strong all-rounder"
+  "anthropic/claude-opus-4.1"       "capable reasoning"
+  "anthropic/claude-opus-4"         "first Opus 4"
+  "anthropic/claude-sonnet-4"       "balanced, widely used"
+  "anthropic/claude-haiku-4.5"      "fastest, cheapest"
+)
+
+WIZARD_MODELS_OPENAI=(
+  "gpt-5.2"           "flagship, coding+agentic"
+  "gpt-5.1"           "configurable reasoning effort"
+  "gpt-5"             "previous gen intelligent reasoning"
+  "gpt-5-mini"        "fast, cost-efficient"
+  "gpt-5-nano"        "fastest, cheapest GPT-5"
+  "gpt-4.1"           "smartest non-reasoning"
+  "gpt-4.1-mini"      "smaller, faster GPT-4.1"
+  "gpt-4.1-nano"      "fastest GPT-4.1"
+  "o3"                "reasoning, complex tasks"
+  "o4-mini"            "fast cost-efficient reasoning"
+  "gpt-4o"            "legacy, still available"
+)
+
+WIZARD_MODELS_GEMINI=(
+  "gemini-2.5-flash"               "best price/performance, stable"
+  "gemini-3-pro-preview"           "most intelligent, preview"
+  "gemini-3-flash-preview"         "fast+balanced, preview"
+  "gemini-2.5-pro"                 "advanced thinking, stable"
+  "gemini-2.5-flash-lite"          "ultra-fast, cheapest"
+  "gemini-2.0-flash"               "previous gen (deprecates Mar 2026)"
+)
+
+WIZARD_MODELS_GROQ=(
+  "llama-3.3-70b-versatile"                   "Meta 70B, 280 t/s, best quality"
+  "llama-3.1-8b-instant"                      "Meta 8B, 560 t/s, ultra-fast"
+  "openai/gpt-oss-120b"                       "OpenAI open-weight 120B, 500 t/s"
+  "openai/gpt-oss-20b"                        "OpenAI open-weight 20B, 1000 t/s"
+  "meta-llama/llama-4-maverick-17b-128e-instruct" "Llama 4 MoE, 600 t/s, preview"
+  "meta-llama/llama-4-scout-17b-16e-instruct" "Llama 4 Scout, 750 t/s, preview"
+  "qwen/qwen3-32b"                            "Alibaba 32B, 400 t/s, preview"
+  "moonshotai/kimi-k2-instruct-0905"          "Moonshot Kimi K2, 200 t/s, preview"
+)
+
+WIZARD_MODELS_OLLAMA=(
+  "qwen3:4b"                    "2.5GB — best all-round intelligence, dual-mode, 100+ languages"
+  "phi4-mini"                   "3.3GB — best tool calling + agent restraint, stable English"
+  "nanbeige4.1:3b"              "2.0GB — NEW Feb 2026, rivals 32B models, unified generalist"
+  "gemma3:4b"                   "3.3GB — multimodal (understands images), strong general"
+  "qwen3:1.7b"                  "1.0GB — ultra-light, good basics, 100+ languages"
+  "smollm3:3b"                  "2.0GB — HuggingFace, reasoning + tool calling + multilingual"
+  "lfm2.5:1.2b"                "0.8GB — fastest inference (1.5s CPU), hybrid architecture"
+  "qwen3:0.6b"                  "0.4GB — 600M params, impossibly good tool calling for size"
+  "deepseek-r1:1.5b"            "1.0GB — reasoning specialist, math focus"
+  "gemma3:1b"                   "0.8GB — Google tiny, basic tasks"
+  "llama3.2:3b"                 "2.0GB — Meta, solid instruction following"
+  "mistral:7b"                  "4.1GB — classic workhorse (needs 8GB+ RAM, tight on 6GB)"
+  "qwen3:8b"                    "4.7GB — most intelligent 8B (needs 8GB+ RAM, tight on 6GB)"
+)
+
+# ════════════════════════════════════════════════
 # FORMATTING
 # ════════════════════════════════════════════════
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; MAGENTA='\033[0;35m'
-BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
+RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; MAGENTA=$'\033[0;35m'
+BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
 CK="${GREEN}✔${NC}"; XK="${RED}✘${NC}"; AR="${CYAN}➜${NC}"
 WN="${YELLOW}⚠${NC}"; IN="${BLUE}ℹ${NC}"
 
-step()      { echo -e "\n${BLUE}${BOLD}━━━ $1: $2 ━━━${NC}\n"; }
-info()      { echo -e "  ${IN} $1"; }
-success()   { echo -e "  ${CK} $1"; }
-warn()      { echo -e "  ${WN} $1"; }
-die()       { echo -e "  ${XK} $1"; exit 1; }
-separator() { echo -e "\n${DIM}  ──────────────────────────────────────────────${NC}\n"; }
+step()      { printf '%s\n' "${BLUE}${BOLD}━━━ $1: $2 ━━━${NC}"; }
+info()      { printf '%s\n' "  ${IN} $1"; }
+success()   { printf '%s\n' "  ${CK} $1"; }
+warn()      { printf '%s\n' "  ${WN} $1"; }
+die()       { printf '%s\n' "  ${XK} $1"; exit 1; }
+separator() {
+    printf '%s\n' "${DIM}  ──────────────────────────────────────────────${NC}"
+}
 
 # ════════════════════════════════════════════════
 # JSON-SAFE STRING HELPER
@@ -183,10 +209,33 @@ separator() { echo -e "\n${DIM}  ───────────────�
 # ════════════════════════════════════════════════
 json_escape() {
     local s="$1"
+    # Strip control characters (0x00-0x08, 0x0b, 0x0c, 0x0e-0x1f) via tr.
+    # Single external call is faster than a pure-bash character loop for
+    # string-level filtering. Keeps tab (0x09), newline (0x0a), CR (0x0d).
     s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')
+    # Escape backslashes and double quotes (pure bash, no fork)
     s="${s//\\/\\\\}"
     s="${s//\"/\\\"}"
     printf '%s' "$s"
+}
+
+# ════════════════════════════════════════════════
+# SHELL ESCAPE — sanitize values for single-quoted source'd conf files
+# Transforms ' into '"'"' (end quote, literal quote, restart quote)
+# ════════════════════════════════════════════════
+shell_escape() {
+    printf '%s' "${1//\'/\'\"\'\"\'}"
+}
+
+# ════════════════════════════════════════════════
+# NODE.JS VERSION HELPER
+# Returns the major version number of the installed Node.js (e.g. "20")
+# ════════════════════════════════════════════════
+_node_major() {
+    local v
+    v=$(node --version 2>/dev/null) || v="v0"
+    v="${v#v}"
+    printf '%s' "${v%%.*}"
 }
 
 # ════════════════════════════════════════════════
@@ -194,10 +243,23 @@ json_escape() {
 # ════════════════════════════════════════════════
 ask() {
     local prompt="$1" var_name="$2" default="${3:-}" secret="${4:-false}"
+
+    if [[ "$CONFIG_LOADED" == "true" ]]; then
+        local -n existing_value="$var_name" 2>/dev/null || true
+        if [[ -n "${existing_value:-}" ]]; then
+            if [[ "$secret" == "true" ]]; then
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}[from config]${NC}"
+            else
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}${existing_value}${NC} ${DIM}[from config]${NC}"
+            fi
+            return 0
+        fi
+    fi
+
     if [[ -n "$default" && "$secret" != "true" ]]; then
         prompt="${prompt} ${DIM}[${default}]${NC}"
     fi
-    echo -ne "  ${AR} ${prompt}: "
+    printf '%s' "  ${AR} ${prompt}: "
     local input=""
     if [[ "$secret" == "true" ]]; then
         read -rs input || true
@@ -212,13 +274,35 @@ ask() {
 }
 
 ask_yn() {
-    local prompt="$1" default="${2:-y}"
+    local prompt="$1" default="${2:-y}" var_name_upper="${3:-}"
+
+    # If no explicit config key provided, derive from prompt (fallback only)
+    if [[ -z "$var_name_upper" ]]; then
+        var_name_upper="${prompt// /_}"
+        var_name_upper="${var_name_upper//[^a-zA-Z0-9_]/}"
+        var_name_upper="${var_name_upper^^}"
+    fi
+
+    if [[ "$CONFIG_LOADED" == "true" ]]; then
+        local -n existing_bool="${var_name_upper}" 2>/dev/null || true
+        if [[ -n "${existing_bool:-}" ]]; then
+            local display_val="${existing_bool,,}"
+            if [[ "$display_val" == "true" || "$display_val" == "y" || "$display_val" == "yes" ]]; then
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}yes${NC} ${DIM}[from config]${NC}"
+                return 0
+            else
+                printf '%s\n' "  ${AR} ${prompt}: ${GREEN}no${NC} ${DIM}[from config]${NC}"
+                return 1
+            fi
+        fi
+    fi
+
     if [[ "$default" == "y" ]]; then
         prompt="${prompt} ${DIM}[Y/n]${NC}"
     else
         prompt="${prompt} ${DIM}[y/N]${NC}"
     fi
-    echo -ne "  ${AR} ${prompt}: "
+    printf '%s' "  ${AR} ${prompt}: "
     local input=""
     read -r input || true
     if [[ -z "$input" ]]; then
@@ -244,6 +328,153 @@ ask_menu() {
 }
 
 # ════════════════════════════════════════════════
+# USAGE — show help text
+# ════════════════════════════════════════════════
+show_usage() {
+    printf '%s\n' "Atlas Installer — Full-featured PicoClaw Gateway Setup"
+    printf '%s\n' ""
+    printf '%s\n' "Usage:"
+    printf '%s\n' "  bash atlas-install.sh                    # Interactive wizard"
+    printf '%s\n' "  bash atlas-install.sh --config <yaml>    # Non-interactive install"
+    printf '%s\n' "  bash atlas-install.sh --help             # Show this help"
+    printf '%s\n' ""
+    printf '%s\n' "Options:"
+    printf '%s\n' "  --config <file>    Path to YAML config file for non-interactive install"
+    printf '%s\n' "  --help             Display this help message"
+    printf '%s\n' ""
+    printf '%s\n' "Config file format (YAML):"
+    printf '%s\n' "  install_from: binary              # or 'source'"
+    printf '%s\n' "  setup_performance: true"
+    printf '%s\n' "  llm_provider: openrouter"
+    printf '%s\n' "  llm_api_key: sk-or-v1-..."
+    printf '%s\n' "  llm_model: anthropic/claude-sonnet-4.5"
+    printf '%s\n' "  max_tokens: 8192"
+    printf '%s\n' "  temperature: 0.7"
+    printf '%s\n' "  tg_enabled: true"
+    printf '%s\n' "  tg_token: 123456:ABC..."
+    printf '%s\n' "  tg_user_id: 5323045369"
+    printf '%s\n' "  # ... (see documentation for full list)"
+    printf '%s\n' ""
+    exit 0
+}
+
+# ════════════════════════════════════════════════
+# YAML PARSER — simple key: value extraction
+# ════════════════════════════════════════════════
+parse_config() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        printf '%s\n' "${RED}✘ Config file not found: ${config_file}${NC}" >&2
+        exit 1
+    fi
+
+    # Allowlist of permitted config keys (uppercase). Only user-facing config
+    # variables are accepted — internal constants like PICOCLAW_DL, checksums,
+    # and download URLs are never overridable from config files.
+    local -A ALLOWED_KEYS=(
+        [INSTALL_FROM]=1 [SETUP_PERFORMANCE]=1
+        [LLM_PROVIDER]=1 [LLM_API_KEY]=1 [LLM_MODEL]=1
+        [LLM_API_BASE]=1 [MAX_TOKENS]=1 [TEMPERATURE]=1
+        [MAX_TOOL_ITER]=1
+        [GROQ_EXTRA_KEY]=1 [GROQ_EXTRA_ENABLED]=1
+        [BRAVE_ENABLED]=1 [BRAVE_API_KEY]=1 [BRAVE_MAX_RESULTS]=1
+        [TG_ENABLED]=1 [TG_TOKEN]=1 [TG_USER_ID]=1 [TG_USERNAME]=1
+        [DC_ENABLED]=1 [DC_TOKEN]=1 [DC_USER_ID]=1 [DC_USERNAME]=1
+        [WA_ENABLED]=1
+        [FEISHU_ENABLED]=1 [FEISHU_APP_ID]=1 [FEISHU_APP_SECRET]=1
+        [MAIXCAM_ENABLED]=1 [MAIXCAM_HOST]=1 [MAIXCAM_PORT]=1
+        [SETUP_FTP]=1 [FTP_USER]=1 [FTP_PASS]=1 [FTP_PORT]=1
+        [FTP_PASV_MIN]=1 [FTP_PASV_MAX]=1 [FTP_TLS]=1
+        [SETUP_SYSTEMD]=1 [SETUP_AUTOBACKUP]=1 [SETUP_ATLAS]=1
+        [SETUP_OLLAMA]=1 [OLLAMA_MODEL]=1 [OLLAMA_NUM_CTX]=1
+        [GW_HOST]=1 [GW_PORT]=1
+    )
+
+    info "Loading config from: ${config_file}"
+
+    local key value var_name
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Strip leading/trailing whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+
+        # Skip blank lines and comment-only lines
+        if [[ -z "$line" || "$line" == \#* ]]; then
+            continue
+        fi
+
+        if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+
+            # Strip quotes first — quoted values preserve # characters
+            if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            else
+                # Unquoted: strip inline comments (space + #)
+                value="${value%%[[:space:]]\#*}"
+                value="${value%"${value##*[![:space:]]}"}"
+                # Re-check for quotes after comment stripping (handles "" # comment)
+                if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                    value="${BASH_REMATCH[1]}"
+                fi
+            fi
+
+            var_name="${key^^}"
+
+            if [[ -z "${ALLOWED_KEYS[$var_name]+x}" ]]; then
+                warn "Ignoring unknown config key: ${key}"
+                continue
+            fi
+
+            printf -v "$var_name" '%s' "$value"
+        fi
+    done < "$config_file"
+
+    # Normalize boolean fields to JSON-safe true/false
+    local _bool_var
+    for _bool_var in TG_ENABLED DC_ENABLED WA_ENABLED FS_ENABLED MC_ENABLED \
+                     SETUP_FTP SETUP_PERFORMANCE SETUP_SYSTEMD SETUP_AUTOBACKUP \
+                     SETUP_ATLAS SETUP_OLLAMA FTP_TLS GROQ_EXTRA_ENABLED \
+                     BRAVE_ENABLED FEISHU_ENABLED MAIXCAM_ENABLED; do
+        local -n _bref="$_bool_var" 2>/dev/null || continue
+        local _bval="${_bref:-false}"
+        case "${_bval,,}" in
+            true|yes|y|1) _bref="true" ;;
+            *)            _bref="false" ;;
+        esac
+    done
+
+    # Map config keys to internal variable names where they differ
+    # Feishu: config uses FEISHU_*, script uses FS_*
+    if [[ -n "${FEISHU_ENABLED:-}" ]]; then FS_ENABLED="${FEISHU_ENABLED}"; fi
+    if [[ -n "${FEISHU_APP_ID:-}" ]]; then FS_APP_ID="${FEISHU_APP_ID}"; fi
+    if [[ -n "${FEISHU_APP_SECRET:-}" ]]; then FS_SECRET="${FEISHU_APP_SECRET}"; fi
+    # MaixCAM: config uses MAIXCAM_*, script uses MC_*
+    if [[ -n "${MAIXCAM_ENABLED:-}" ]]; then MC_ENABLED="${MAIXCAM_ENABLED}"; fi
+    if [[ -n "${MAIXCAM_HOST:-}" ]]; then MC_HOST="${MAIXCAM_HOST}"; fi
+    if [[ -n "${MAIXCAM_PORT:-}" ]]; then MC_PORT="${MAIXCAM_PORT}"; fi
+
+    # Validate numeric fields — reset to defaults if malformed
+    [[ "$MAX_TOKENS" =~ ^[0-9]+$ ]] || MAX_TOKENS=8192
+    [[ "$TEMPERATURE" =~ ^[0-9]+(\.[0-9]+)?$ ]] || TEMPERATURE=0.7
+    [[ "$MAX_TOOL_ITER" =~ ^[0-9]+$ ]] || MAX_TOOL_ITER=20
+    [[ "$GW_PORT" =~ ^[0-9]+$ ]] || GW_PORT=18790
+    [[ "$BRAVE_MAX_RESULTS" =~ ^[0-9]+$ ]] || BRAVE_MAX_RESULTS=5
+    [[ "$MC_PORT" =~ ^[0-9]+$ ]] || MC_PORT=18790
+    [[ "$FTP_PORT" =~ ^[0-9]+$ ]] || FTP_PORT=21
+    [[ "$FTP_PASV_MIN" =~ ^[0-9]+$ ]] || FTP_PASV_MIN=40000
+    [[ "$FTP_PASV_MAX" =~ ^[0-9]+$ ]] || FTP_PASV_MAX=40100
+    [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] || OLLAMA_NUM_CTX=8192
+
+    success "Config loaded"
+}
+
+# ════════════════════════════════════════════════
 # MODEL SELECTION HELPER
 # ════════════════════════════════════════════════
 select_model() {
@@ -254,7 +485,7 @@ select_model() {
     done
     local count=${#models[@]}
     echo ""
-    echo -e "  ${BOLD}Available models:${NC}"
+    printf "  ${BOLD}Available models:${NC}\n"
     echo ""
     for i in "${!models[@]}"; do
         local num=$((i + 1))
@@ -292,7 +523,10 @@ select_model() {
 
 # ════════════════════════════════════════════════
 # WIZARD STATE (all global)
+# CONFIG_LOADED is set to true only when --config is used.
+# ask() and ask_yn() check this before treating existing values as overrides.
 # ════════════════════════════════════════════════
+CONFIG_LOADED=false
 INSTALL_FROM="binary"
 LLM_PROVIDER=""; LLM_API_KEY=""; LLM_API_BASE=""; LLM_MODEL=""
 MAX_TOKENS="8192"; TEMPERATURE="0.7"; MAX_TOOL_ITER="20"
@@ -310,15 +544,17 @@ SETUP_PERFORMANCE=true
 SETUP_ATLAS=true
 SETUP_FTP=false; FTP_USER="root"; FTP_PASS=""; FTP_PORT="21"
 FTP_PASV_MIN="40000"; FTP_PASV_MAX="40100"; FTP_TLS=false
-SETUP_OLLAMA=false; OLLAMA_MODEL=""; OLLAMA_NUM_CTX="4096"
+SETUP_OLLAMA=false; OLLAMA_MODEL=""; OLLAMA_NUM_CTX="8192"
 _WIZ_CHOICE=""
 
 # ════════════════════════════════════════════════
 # BANNER
 # ════════════════════════════════════════════════
 banner() {
-    clear
-    echo -e "${MAGENTA}${BOLD}"
+    if [[ "$CONFIG_LOADED" != "true" ]]; then
+        clear
+    fi
+    printf "${MAGENTA}${BOLD}\n"
     cat << 'EOF'
     ╔══════════════════════════════════════════════════════════╗
     ║                                                          ║
@@ -327,9 +563,9 @@ banner() {
     ║                                                          ║
     ╚══════════════════════════════════════════════════════════╝
 EOF
-    echo -e "${NC}"
-    echo -e "  ${DIM}PicoClaw ${PICOCLAW_VERSION}  •  Go ${GO_VERSION}  •  $(date +%F)${NC}"
-    echo -e "  ${DIM}https://github.com/sipeed/picoclaw${NC}"
+    printf "${NC}\n"
+    printf "  ${DIM}PicoClaw ${PICOCLAW_VERSION}  •  Go ${GO_VERSION}  •  $(date +%F)${NC}\n"
+    printf "  ${DIM}https://github.com/sipeed/picoclaw${NC}\n"
     echo ""
 }
 
@@ -350,6 +586,9 @@ preflight() {
             success "Debian ${VERSION_ID:-13} (${VERSION_CODENAME:-trixie})"
         else
             warn "Detected: ${PRETTY_NAME:-unknown}. Script targets Debian 13."
+            if [[ "$CONFIG_LOADED" == "true" ]]; then
+                die "Config error: this script targets Debian 13 but detected ${PRETTY_NAME:-unknown}"
+            fi
             ask_yn "Continue anyway?" "n" || exit 1
         fi
     else
@@ -417,16 +656,25 @@ resolve_picoclaw_latest() {
         checksums_body=$(curl -sfL --connect-timeout 10 --max-time 30 "$checksums_url" 2>/dev/null) || true
 
         if [[ -n "$checksums_body" ]]; then
-            local sha=""
+            local sha="" line_match
 
-            sha=$(echo "$checksums_body" | grep -i "picoclaw-linux-amd64" | awk '{print $1}') || true
-            if [[ -n "$sha" ]]; then PC_SHA_AMD64="$sha"; fi
+            line_match=$(echo "$checksums_body" | grep -i "picoclaw-linux-amd64") || true
+            if [[ -n "$line_match" ]]; then
+                read -r sha _ <<< "$line_match"
+                [[ -n "$sha" ]] && PC_SHA_AMD64="$sha"
+            fi
 
-            sha=$(echo "$checksums_body" | grep -i "picoclaw-linux-arm64" | awk '{print $1}') || true
-            if [[ -n "$sha" ]]; then PC_SHA_ARM64="$sha"; fi
+            line_match=$(echo "$checksums_body" | grep -i "picoclaw-linux-arm64") || true
+            if [[ -n "$line_match" ]]; then
+                read -r sha _ <<< "$line_match"
+                [[ -n "$sha" ]] && PC_SHA_ARM64="$sha"
+            fi
 
-            sha=$(echo "$checksums_body" | grep -i "picoclaw-linux-riscv64" | awk '{print $1}') || true
-            if [[ -n "$sha" ]]; then PC_SHA_RISCV64="$sha"; fi
+            line_match=$(echo "$checksums_body" | grep -i "picoclaw-linux-riscv64") || true
+            if [[ -n "$line_match" ]]; then
+                read -r sha _ <<< "$line_match"
+                [[ -n "$sha" ]] && PC_SHA_RISCV64="$sha"
+            fi
 
             success "SHA256 checksums loaded from release assets"
             return 0
@@ -443,17 +691,103 @@ resolve_picoclaw_latest() {
 # WIZARD
 # ════════════════════════════════════════════════
 wizard() {
+    # Non-interactive mode: all values loaded by parse_config, skip wizard entirely
+    if [[ "$CONFIG_LOADED" == "true" ]]; then
+        info "Non-interactive mode — skipping wizard (all values from config)"
+
+        # Auto-fill LLM_API_BASE from provider when not explicitly set
+        if [[ -z "$LLM_API_BASE" ]]; then
+            case "$LLM_PROVIDER" in
+                openrouter) LLM_API_BASE="https://openrouter.ai/api/v1" ;;
+                zhipu)      LLM_API_BASE="https://open.bigmodel.cn/api/paas/v4" ;;
+                groq)       LLM_API_BASE="https://api.groq.com/openai/v1" ;;
+                ollama)     LLM_API_BASE="${OLLAMA_API_BASE}" ;;
+            esac
+        fi
+        if [[ "$LLM_PROVIDER" == "vllm" && -z "$LLM_API_BASE" ]]; then
+            die "Config error: llm_api_base is required for provider 'vllm'"
+        fi
+
+        # Validate FTP password when FTP is enabled
+        if [[ "${SETUP_FTP}" == "true" ]]; then
+            if [[ -z "$FTP_PASS" ]]; then
+                die "Config error: ftp_pass is required when setup_ftp is true"
+            fi
+            if [[ ${#FTP_PASS} -lt 8 ]]; then
+                die "Config error: ftp_pass must be at least 8 characters"
+            fi
+        fi
+
+        # Validate OLLAMA_NUM_CTX minimum
+        if [[ "${SETUP_OLLAMA}" == "true" ]]; then
+            if [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] && (( OLLAMA_NUM_CTX < 8192 )); then
+                warn "ollama_num_ctx (${OLLAMA_NUM_CTX}) below minimum 8192 — resetting to 8192"
+                OLLAMA_NUM_CTX="8192"
+            fi
+        fi
+
+        # Validate required LLM fields
+        if [[ -z "$LLM_PROVIDER" ]]; then
+            die "Config error: llm_provider is required"
+        fi
+        case "$LLM_PROVIDER" in
+            openrouter|zhipu|openai|gemini|groq|vllm|ollama) ;;
+            *) die "Config error: unsupported llm_provider '${LLM_PROVIDER}' (valid: openrouter, zhipu, openai, gemini, groq, vllm, ollama)" ;;
+        esac
+        case "$INSTALL_FROM" in
+            binary|source) ;;
+            *) die "Config error: install_from must be 'binary' or 'source' (got '${INSTALL_FROM}')" ;;
+        esac
+        if [[ "$LLM_PROVIDER" != "ollama" && "$LLM_PROVIDER" != "vllm" && -z "$LLM_API_KEY" ]]; then
+            die "Config error: llm_api_key is required for provider '${LLM_PROVIDER}'"
+        fi
+        if [[ -z "$LLM_MODEL" ]]; then
+            die "Config error: llm_model is required"
+        fi
+
+        # Validate required fields for enabled channels/features
+        if [[ "${TG_ENABLED}" == "true" ]]; then
+            [[ -n "$TG_TOKEN" ]] || die "Config error: tg_token is required when tg_enabled is true"
+            [[ -n "$TG_USER_ID" ]] || die "Config error: tg_user_id is required when tg_enabled is true"
+        fi
+        if [[ "${DC_ENABLED}" == "true" ]]; then
+            [[ -n "$DC_TOKEN" ]] || die "Config error: dc_token is required when dc_enabled is true"
+            [[ -n "$DC_USER_ID" ]] || die "Config error: dc_user_id is required when dc_enabled is true"
+        fi
+        if [[ "${BRAVE_ENABLED}" == "true" ]]; then
+            [[ -n "$BRAVE_API_KEY" ]] || die "Config error: brave_api_key is required when brave_enabled is true"
+        fi
+        if [[ "${GROQ_EXTRA_ENABLED}" == "true" ]]; then
+            [[ -n "$GROQ_EXTRA_KEY" ]] || die "Config error: groq_extra_key is required when groq_extra_enabled is true"
+        fi
+        if [[ "${FEISHU_ENABLED}" == "true" ]]; then
+            [[ -n "$FS_APP_ID" ]] || die "Config error: feishu_app_id is required when feishu_enabled is true"
+            [[ -n "$FS_SECRET" ]] || die "Config error: feishu_app_secret is required when feishu_enabled is true"
+        fi
+
+        # Auto-link: ollama provider requires setup_ollama
+        if [[ "$LLM_PROVIDER" == "ollama" && "$SETUP_OLLAMA" != "true" ]]; then
+            info "llm_provider is 'ollama' — enabling setup_ollama automatically"
+            SETUP_OLLAMA=true
+        fi
+        if [[ "$LLM_PROVIDER" == "ollama" && -z "$OLLAMA_MODEL" ]]; then
+            OLLAMA_MODEL="$LLM_MODEL"
+        fi
+
+        return 0
+    fi
+
     banner
-    echo -e "  ${BOLD}Configuration Wizard${NC}"
-    echo -e "  ${DIM}Answer the prompts. Press Enter for defaults.${NC}"
-    echo -e "  ${DIM}All settings go to ${CONFIG_FILE}${NC}"
+    printf "  ${BOLD}Configuration Wizard${NC}\n"
+    printf "  ${DIM}Answer the prompts. Press Enter for defaults.${NC}\n"
+    printf "  ${DIM}All settings go to ${CONFIG_FILE}${NC}\n"
     echo ""
-    echo -ne "  ${DIM}Press Enter to start...${NC}"; read -r
+    printf "  ${DIM}Press Enter to start...${NC}"; read -r
 
     # ── 1. Install method ──
     step "1/14" "Install Method"
-    echo -e "    ${CYAN}1${NC}) Pre-built binary  ${DIM}(~9MB download, fast, recommended)${NC}"
-    echo -e "    ${CYAN}2${NC}) Build from source  ${DIM}(needs Go ${GO_VERSION}, ~2 min)${NC}"
+    printf "    ${CYAN}1${NC}) Pre-built binary  ${DIM}(~9MB download, fast, recommended)${NC}\n"
+    printf "    ${CYAN}2${NC}) Build from source  ${DIM}(needs Go ${GO_VERSION}, ~2 min)${NC}\n"
     echo ""
     ask_menu _WIZ_CHOICE 1 2 1
     if [[ "$_WIZ_CHOICE" == "2" ]]; then
@@ -465,31 +799,31 @@ wizard() {
 
     # ── 2. System Performance ──
     step "2/14" "System Performance Optimizer"
-    echo -e "  ${DIM}Dramatically improve your machine's performance with deep${NC}"
-    echo -e "  ${DIM}kernel, network, memory, I/O, and storage optimizations.${NC}\n"
-    echo -e "  ${BOLD}What it does:${NC}"
-    echo -e "    ${GREEN}•${NC} TCP BBR congestion control (lower latency, higher throughput)"
-    echo -e "    ${GREEN}•${NC} Kernel sysctl tuning (network buffers, connection limits, file handles)"
-    echo -e "    ${GREEN}•${NC} Memory optimization (swappiness, dirty ratios, vfs cache pressure)"
-    echo -e "    ${GREEN}•${NC} zram compressed swap (2-3x effective RAM on low-memory VPS)"
-    echo -e "    ${GREEN}•${NC} I/O scheduler optimization (auto-detect SSD/HDD)"
-    echo -e "    ${GREEN}•${NC} SSD TRIM scheduling (weekly fstrim for SSD longevity + speed)"
-    echo -e "    ${GREEN}•${NC} tmpfs for /tmp (RAM-backed temp storage, zero disk I/O)"
-    echo -e "    ${GREEN}•${NC} DNS optimization (Cloudflare 1.1.1.1 + Google 8.8.8.8)"
-    echo -e "    ${GREEN}•${NC} File descriptor & process limits (1M+ open files)"
-    echo -e "    ${GREEN}•${NC} Journald log size cap (prevent log bloat eating disk)"
-    echo -e "    ${GREEN}•${NC} Disable unnecessary systemd services (bloat removal)"
-    echo -e "    ${GREEN}•${NC} Filesystem noatime (reduce useless disk writes)"
-    echo -e "    ${GREEN}•${NC} Systemd timeouts (faster boot/shutdown)"
-    echo -e "    ${GREEN}•${NC} IRQ balancing for multi-core efficiency"
+    printf "  ${DIM}Dramatically improve your machine's performance with deep${NC}\n"
+    printf "  ${DIM}kernel, network, memory, I/O, and storage optimizations.${NC}\n"
+    printf "  ${BOLD}What it does:${NC}\n"
+    printf "    ${GREEN}•${NC} TCP BBR congestion control (lower latency, higher throughput)\n"
+    printf "    ${GREEN}•${NC} Kernel sysctl tuning (network buffers, connection limits, file handles)\n"
+    printf "    ${GREEN}•${NC} Memory optimization (swappiness, dirty ratios, vfs cache pressure)\n"
+    printf "    ${GREEN}•${NC} zram compressed swap (2-3x effective RAM on low-memory VPS)\n"
+    printf "    ${GREEN}•${NC} I/O scheduler optimization (auto-detect SSD/HDD)\n"
+    printf "    ${GREEN}•${NC} SSD TRIM scheduling (weekly fstrim for SSD longevity + speed)\n"
+    printf "    ${GREEN}•${NC} tmpfs for /tmp (RAM-backed temp storage, zero disk I/O)\n"
+    printf "    ${GREEN}•${NC} DNS optimization (Cloudflare 1.1.1.1 + Google 8.8.8.8)\n"
+    printf "    ${GREEN}•${NC} File descriptor & process limits (1M+ open files)\n"
+    printf "    ${GREEN}•${NC} Journald log size cap (prevent log bloat eating disk)\n"
+    printf "    ${GREEN}•${NC} Disable unnecessary systemd services (bloat removal)\n"
+    printf "    ${GREEN}•${NC} Filesystem noatime (reduce useless disk writes)\n"
+    printf "    ${GREEN}•${NC} Systemd timeouts (faster boot/shutdown)\n"
+    printf "    ${GREEN}•${NC} IRQ balancing for multi-core efficiency\n"
     echo ""
-    echo -e "  ${DIM}All changes are persistent across reboots via /etc/sysctl.d/,${NC}"
-    echo -e "  ${DIM}/etc/security/limits.d/, and systemd drop-ins.${NC}"
-    echo -e "  ${DIM}Original values are backed up before any change.${NC}"
+    printf "  ${DIM}All changes are persistent across reboots via /etc/sysctl.d/,${NC}\n"
+    printf "  ${DIM}/etc/security/limits.d/, and systemd drop-ins.${NC}\n"
+    printf "  ${DIM}Original values are backed up before any change.${NC}\n"
     echo ""
-    echo -e "  ${YELLOW}${BOLD}Note:${NC} ${YELLOW}Selecting this will require a mandatory reboot at the end${NC}"
-    echo -e "  ${YELLOW}of installation to fully activate all kernel-level optimizations.${NC}\n"
-    if ask_yn "Optimize system performance?" "y"; then
+    printf "  ${YELLOW}${BOLD}Note:${NC} ${YELLOW}Selecting this will require a mandatory reboot at the end${NC}\n"
+    printf "  ${YELLOW}of installation to fully activate all kernel-level optimizations.${NC}\n"
+    if ask_yn "Optimize system performance?" "y" "SETUP_PERFORMANCE"; then
         SETUP_PERFORMANCE=true
     else
         SETUP_PERFORMANCE=false
@@ -498,56 +832,25 @@ wizard() {
 
     # ── 3. LLM Provider ──
     step "3/14" "LLM Provider"
-    echo -e "  ${DIM}From pkg/config/config.go — 7 providers supported + local Ollama:${NC}\n"
-    echo -e "    ${CYAN}1${NC}) OpenRouter       ${DIM}multi-model gateway (recommended)${NC}"
-    echo -e "    ${CYAN}2${NC}) Zhipu            ${DIM}GLM models${NC}"
-    echo -e "    ${CYAN}3${NC}) Anthropic        ${DIM}Claude (via OpenRouter — direct not supported)${NC}"
-    echo -e "    ${CYAN}4${NC}) OpenAI           ${DIM}GPT${NC}"
-    echo -e "    ${CYAN}5${NC}) Gemini           ${DIM}Google${NC}"
-    echo -e "    ${CYAN}6${NC}) Groq             ${DIM}fast open-weight inference + free Whisper voice${NC}"
-    echo -e "    ${CYAN}7${NC}) vLLM / Local     ${DIM}self-hosted (requires api_base URL)${NC}"
-    echo -e "    ${CYAN}8${NC}) Ollama (Local)   ${DIM}run models locally on this machine — no API key needed${NC}"
+    printf "  ${DIM}From pkg/config/config.go — 7 providers supported + local Ollama:${NC}\n"
+    printf "    ${CYAN}1${NC}) OpenRouter       ${DIM}multi-model gateway (recommended)${NC}\n"
+    printf "    ${CYAN}2${NC}) Zhipu            ${DIM}GLM models${NC}\n"
+    printf "    ${CYAN}3${NC}) Anthropic        ${DIM}Claude (via OpenRouter — direct not supported)${NC}\n"
+    printf "    ${CYAN}4${NC}) OpenAI           ${DIM}GPT${NC}\n"
+    printf "    ${CYAN}5${NC}) Gemini           ${DIM}Google${NC}\n"
+    printf "    ${CYAN}6${NC}) Groq             ${DIM}fast open-weight inference + free Whisper voice${NC}\n"
+    printf "    ${CYAN}7${NC}) vLLM / Local     ${DIM}self-hosted (requires api_base URL)${NC}\n"
+    printf "    ${CYAN}8${NC}) Ollama (Local)   ${DIM}run models locally on this machine — no API key needed${NC}\n"
     echo ""
     ask_menu _WIZ_CHOICE 1 8 1
     case "$_WIZ_CHOICE" in
         1)  LLM_PROVIDER="openrouter"; LLM_API_BASE="https://openrouter.ai/api/v1"
             ask "API key (https://openrouter.ai/keys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "anthropic/claude-sonnet-4.5"    "latest Sonnet, best coding+agents" \
-                "anthropic/claude-opus-4.6"      "most powerful, complex challenges" \
-                "anthropic/claude-opus-4.5"      "strong all-rounder" \
-                "anthropic/claude-sonnet-4"      "balanced price/performance" \
-                "openai/gpt-5.2"                 "OpenAI flagship, coding+agentic" \
-                "openai/gpt-5.1"                 "configurable reasoning effort" \
-                "openai/gpt-5"                   "previous gen reasoning" \
-                "openai/gpt-5-mini"              "fast, cost-efficient GPT-5" \
-                "google/gemini-3-pro-preview"    "Google most intelligent" \
-                "google/gemini-3-flash-preview"  "Google fast+balanced" \
-                "google/gemini-2.5-flash"        "Google best price/perf" \
-                "google/gemini-2.5-pro"          "Google advanced thinking" \
-                "deepseek/deepseek-r1"           "reasoning, open-weight" \
-                "deepseek/deepseek-v3-0324"      "fast general purpose" \
-                "meta-llama/llama-4-maverick"    "Meta latest MoE" \
-                "qwen/qwen3-235b-a22b"           "Alibaba frontier"
+            select_model LLM_MODEL "${WIZARD_MODELS_OPENROUTER[@]}"
             ;;
         2)  LLM_PROVIDER="zhipu"; LLM_API_BASE="https://open.bigmodel.cn/api/paas/v4"
             ask "API key (https://bigmodel.cn/usercenter/proj-mgmt/apikeys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "glm-5"                  "744B MoE (40B active), flagship, agentic engineering" \
-                "glm-4.7"               "355B MoE (32B active), coding+reasoning+agents" \
-                "glm-4.7-flashx"        "fast+cheap, extended FlashX" \
-                "glm-4.7-flash"         "30B MoE (3B active), free tier" \
-                "glm-4.6"              "357B, 200K context, agentic+coding" \
-                "glm-4.5"              "355B MoE, reasoning+agents" \
-                "glm-4.5-x"            "extended context GLM-4.5" \
-                "glm-4.5-air"          "106B MoE (12B active), balanced cost/perf" \
-                "glm-4.5-airx"         "extended context Air" \
-                "glm-4.5-flash"        "free tier, fast" \
-                "glm-4-32b-0414-128k"  "open-weight 32B, 128K context" \
-                "glm-4.6v"             "106B vision, 128K ctx, native tool use" \
-                "glm-4.6v-flashx"      "fast+cheap vision" \
-                "glm-4.5v"             "vision multimodal" \
-                "glm-4.6v-flash"       "9B vision, free tier"
+            select_model LLM_MODEL "${WIZARD_MODELS_ZHIPU[@]}"
             ;;
         3)  LLM_PROVIDER="openrouter"; LLM_API_BASE="https://openrouter.ai/api/v1"
             echo ""
@@ -557,51 +860,19 @@ wizard() {
             info "Get a free OpenRouter key at: ${CYAN}https://openrouter.ai/keys${NC}"
             echo ""
             ask "OpenRouter API key (https://openrouter.ai/keys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "anthropic/claude-sonnet-4.5"     "latest Sonnet, best coding+agents" \
-                "anthropic/claude-opus-4.6"       "most powerful, complex challenges" \
-                "anthropic/claude-opus-4.5"       "strong all-rounder" \
-                "anthropic/claude-opus-4.1"       "capable reasoning" \
-                "anthropic/claude-opus-4"         "first Opus 4" \
-                "anthropic/claude-sonnet-4"       "balanced, widely used" \
-                "anthropic/claude-haiku-4.5"      "fastest, cheapest"
+            select_model LLM_MODEL "${WIZARD_MODELS_OPENROUTER_ANTHROPIC[@]}"
             ;;
         4)  LLM_PROVIDER="openai"; LLM_API_BASE=""
             ask "API key (https://platform.openai.com)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "gpt-5.2"           "flagship, coding+agentic" \
-                "gpt-5.1"           "configurable reasoning effort" \
-                "gpt-5"             "previous gen intelligent reasoning" \
-                "gpt-5-mini"        "fast, cost-efficient" \
-                "gpt-5-nano"        "fastest, cheapest GPT-5" \
-                "gpt-4.1"           "smartest non-reasoning" \
-                "gpt-4.1-mini"      "smaller, faster GPT-4.1" \
-                "gpt-4.1-nano"      "fastest GPT-4.1" \
-                "o3"                "reasoning, complex tasks" \
-                "o4-mini"            "fast cost-efficient reasoning" \
-                "gpt-4o"            "legacy, still available"
+            select_model LLM_MODEL "${WIZARD_MODELS_OPENAI[@]}"
             ;;
         5)  LLM_PROVIDER="gemini"; LLM_API_BASE=""
             ask "API key (https://aistudio.google.com/api-keys)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "gemini-2.5-flash"               "best price/performance, stable" \
-                "gemini-3-pro-preview"           "most intelligent, preview" \
-                "gemini-3-flash-preview"         "fast+balanced, preview" \
-                "gemini-2.5-pro"                 "advanced thinking, stable" \
-                "gemini-2.5-flash-lite"          "ultra-fast, cheapest" \
-                "gemini-2.0-flash"               "previous gen (deprecates Mar 2026)"
+            select_model LLM_MODEL "${WIZARD_MODELS_GEMINI[@]}"
             ;;
         6)  LLM_PROVIDER="groq"; LLM_API_BASE="https://api.groq.com/openai/v1"
             ask "API key (https://console.groq.com)" LLM_API_KEY "" true
-            select_model LLM_MODEL \
-                "llama-3.3-70b-versatile"                   "Meta 70B, 280 t/s, best quality" \
-                "llama-3.1-8b-instant"                      "Meta 8B, 560 t/s, ultra-fast" \
-                "openai/gpt-oss-120b"                       "OpenAI open-weight 120B, 500 t/s" \
-                "openai/gpt-oss-20b"                        "OpenAI open-weight 20B, 1000 t/s" \
-                "meta-llama/llama-4-maverick-17b-128e-instruct" "Llama 4 MoE, 600 t/s, preview" \
-                "meta-llama/llama-4-scout-17b-16e-instruct" "Llama 4 Scout, 750 t/s, preview" \
-                "qwen/qwen3-32b"                            "Alibaba 32B, 400 t/s, preview" \
-                "moonshotai/kimi-k2-instruct-0905"          "Moonshot Kimi K2, 200 t/s, preview"
+            select_model LLM_MODEL "${WIZARD_MODELS_GROQ[@]}"
             echo ""
             info "Groq models will be routed via the OpenRouter config slot"
             info "(PicoClaw workaround — Groq's API is OpenAI-compatible)"
@@ -619,31 +890,18 @@ wizard() {
             info "Models are downloaded after installation."
             info "Ollama's API is OpenAI-compatible and routes via the vllm provider slot."
             echo ""
-            select_model OLLAMA_MODEL \
-                "qwen3:4b"                    "2.5GB — best all-round intelligence, dual-mode, 100+ languages" \
-                "phi4-mini"                   "3.3GB — best tool calling + agent restraint, stable English" \
-                "nanbeige4.1:3b"              "2.0GB — NEW Feb 2026, rivals 32B models, unified generalist" \
-                "gemma3:4b"                   "3.3GB — multimodal (understands images), strong general" \
-                "qwen3:1.7b"                  "1.0GB — ultra-light, good basics, 100+ languages" \
-                "smollm3:3b"                  "2.0GB — HuggingFace, reasoning + tool calling + multilingual" \
-                "lfm2.5:1.2b"                "0.8GB — fastest inference (1.5s CPU), hybrid architecture" \
-                "qwen3:0.6b"                  "0.4GB — 600M params, impossibly good tool calling for size" \
-                "deepseek-r1:1.5b"            "1.0GB — reasoning specialist, math focus" \
-                "gemma3:1b"                   "0.8GB — Google tiny, basic tasks" \
-                "llama3.2:3b"                 "2.0GB — Meta, solid instruction following" \
-                "mistral:7b"                  "4.1GB — classic workhorse (needs 8GB+ RAM, tight on 6GB)" \
-                "qwen3:8b"                    "4.7GB — most intelligent 8B (needs 8GB+ RAM, tight on 6GB)"
+            select_model OLLAMA_MODEL "${WIZARD_MODELS_OLLAMA[@]}"
             LLM_MODEL="$OLLAMA_MODEL"
             echo ""
-			echo -e "  ${DIM}PicoClaw's system prompt uses ~4000+ tokens (skills + tools).${NC}"
-			echo -e "  ${DIM}Minimum: 8192. Use 8192 on 6GB RAM, 16384 on 8GB+, 32768 on 16GB+.${NC}"
-			ask "Context window size" OLLAMA_NUM_CTX "8192"
+            printf "  ${DIM}PicoClaw's system prompt uses ~4000+ tokens (skills + tools).${NC}\n"
+            printf "  ${DIM}Minimum: 8192. Use 8192 on 6GB RAM, 16384 on 8GB+, 32768 on 16GB+.${NC}\n"
+            ask "Context window size" OLLAMA_NUM_CTX "8192"
             while true; do
                 if [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] && (( OLLAMA_NUM_CTX >= 8192 )); then
                     break
                 fi
                 warn "Context window must be a number >= 8192 (PicoClaw needs ~4000 tokens for system prompt)"
-                ask "Context window size" OLLAMA_NUM_CTX "4096"
+                ask "Context window size" OLLAMA_NUM_CTX "8192"
             done
             echo ""
             warn "Models are downloaded after installation (~0.4-5GB depending on model)."
@@ -661,11 +919,11 @@ wizard() {
 
     # ── 4. Groq voice transcription ──
     step "4/14" "Groq Voice Transcription (Optional)"
-    echo -e "  ${DIM}Groq provides free Whisper transcription for Telegram/Discord voice.${NC}\n"
+    printf "  ${DIM}Groq provides free Whisper transcription for Telegram/Discord voice.${NC}\n"
     if [[ "$LLM_PROVIDER" == "groq" ]]; then
         info "Already using Groq as primary — voice transcription included"
     else
-        if ask_yn "Add Groq key for voice transcription?" "n"; then
+        if ask_yn "Add Groq key for voice transcription?" "n" "GROQ_EXTRA_ENABLED"; then
             ask "Groq API key (https://console.groq.com)" GROQ_EXTRA_KEY "" true
         fi
     fi
@@ -673,9 +931,9 @@ wizard() {
 
     # ── 5. Brave Search ──
     step "5/14" "Web Search (Optional)"
-    echo -e "  ${DIM}Brave Search API — 2000 free queries/month${NC}"
-    echo -e "  ${DIM}https://brave.com/search/api${NC}\n"
-    if ask_yn "Configure Brave Search?" "n"; then
+    printf "  ${DIM}Brave Search API — 2000 free queries/month${NC}\n"
+    printf "  ${DIM}https://brave.com/search/api${NC}\n"
+    if ask_yn "Configure Brave Search?" "n" "BRAVE_ENABLED"; then
         ask "API key" BRAVE_API_KEY "" true
         ask "Max results per query" BRAVE_MAX_RESULTS "5"
     fi
@@ -683,12 +941,12 @@ wizard() {
 
     # ── 6. Telegram ──
     step "6/14" "Telegram Bot"
-    echo -e "  ${DIM}Control PicoClaw from your phone via Telegram.${NC}\n"
-    if ask_yn "Configure Telegram?" "y"; then
+    printf "  ${DIM}Control PicoClaw from your phone via Telegram.${NC}\n"
+    if ask_yn "Configure Telegram?" "y" "TG_ENABLED"; then
         TG_ENABLED=true
-        echo -e "\n  ${DIM}Create: @BotFather → /newbot${NC}"
-        echo -e "  ${DIM}Get ID: @userinfobot → your numeric ID${NC}"
-        echo -e "  ${DIM}Get username: Telegram Settings → your @username (without the @)${NC}\n"
+        printf "\n  ${DIM}Create: @BotFather → /newbot${NC}\n"
+        printf "  ${DIM}Get ID: @userinfobot → your numeric ID${NC}\n"
+        printf "  ${DIM}Get username: Telegram Settings → your @username (without the @)${NC}\n"
         ask "Bot token" TG_TOKEN "" true
         ask "Your user ID (numeric, e.g. 5323045369)" TG_USER_ID ""
         ask "Your Telegram username (without @, e.g. johndoe)" TG_USERNAME ""
@@ -700,13 +958,13 @@ wizard() {
 
     # ── 7. Discord ──
     step "7/14" "Discord Bot (Optional)"
-    echo -e "  ${DIM}https://discord.com/developers/applications${NC}\n"
-    if ask_yn "Configure Discord?" "n"; then
+    printf "  ${DIM}https://discord.com/developers/applications${NC}\n"
+    if ask_yn "Configure Discord?" "n" "DC_ENABLED"; then
         DC_ENABLED=true
-        echo -e "\n  ${DIM}Create app → Bot → Copy token${NC}"
-        echo -e "  ${DIM}Enable MESSAGE CONTENT INTENT in Bot settings${NC}"
-        echo -e "  ${DIM}Get user ID: Settings → Advanced → Developer Mode → right-click avatar${NC}"
-        echo -e "  ${DIM}Get username: your Discord username (not display name)${NC}\n"
+        printf "\n  ${DIM}Create app → Bot → Copy token${NC}\n"
+        printf "  ${DIM}Enable MESSAGE CONTENT INTENT in Bot settings${NC}\n"
+        printf "  ${DIM}Get user ID: Settings → Advanced → Developer Mode → right-click avatar${NC}\n"
+        printf "  ${DIM}Get username: your Discord username (not display name)${NC}\n"
         ask "Bot token" DC_TOKEN "" true
         ask "Your user ID" DC_USER_ID ""
         ask "Your Discord username (without #, e.g. johndoe)" DC_USERNAME ""
@@ -718,23 +976,23 @@ wizard() {
 
     # ── 8. Other channels ──
     step "8/14" "Other Channels (Optional)"
-    echo -e "  ${DIM}WhatsApp (needs bridge), Feishu/Lark, MaixCAM${NC}\n"
+    printf "  ${DIM}WhatsApp (needs bridge), Feishu/Lark, MaixCAM${NC}\n"
 
     # ── WhatsApp ──
-    echo -e "  ${BOLD}WhatsApp${NC}"
-    echo -e "  ${DIM}WhatsApp requires a Node.js bridge (Baileys) running alongside PicoClaw.${NC}"
-    echo -e "  ${DIM}The bridge translates WhatsApp Web protocol ↔ WebSocket JSON for PicoClaw.${NC}\n"
-    echo -e "  ${BOLD}How it works:${NC}"
-    echo -e "    ${GREEN}•${NC} Node.js 20+ will be installed automatically"
-    echo -e "    ${GREEN}•${NC} The Baileys bridge runs as a systemd service on a configurable port"
-    echo -e "    ${GREEN}•${NC} PicoClaw gateway connects to the bridge via WebSocket"
-    echo -e "    ${GREEN}•${NC} The bridge starts BEFORE the gateway (systemd dependency)"
+    printf "  ${BOLD}WhatsApp${NC}\n"
+    printf "  ${DIM}WhatsApp requires a Node.js bridge (Baileys) running alongside PicoClaw.${NC}\n"
+    printf "  ${DIM}The bridge translates WhatsApp Web protocol ↔ WebSocket JSON for PicoClaw.${NC}\n"
+    printf "  ${BOLD}How it works:${NC}\n"
+    printf "    ${GREEN}•${NC} Node.js 20+ will be installed automatically\n"
+    printf "    ${GREEN}•${NC} The Baileys bridge runs as a systemd service on a configurable port\n"
+    printf "    ${GREEN}•${NC} PicoClaw gateway connects to the bridge via WebSocket\n"
+    printf "    ${GREEN}•${NC} The bridge starts BEFORE the gateway (systemd dependency)\n"
     echo ""
-    echo -e "  ${YELLOW}${BOLD}Important:${NC} ${YELLOW}After installation, you will be prompted to scan a QR code${NC}"
-    echo -e "  ${YELLOW}to link your WhatsApp account. The QR scan is one-time; session persists.${NC}"
-    echo -e "  ${DIM}Session can expire after ~14 days if your phone is offline.${NC}"
+    printf "  ${YELLOW}${BOLD}Important:${NC} ${YELLOW}After installation, you will be prompted to scan a QR code${NC}\n"
+    printf "  ${YELLOW}to link your WhatsApp account. The QR scan is one-time; session persists.${NC}\n"
+    printf "  ${DIM}Session can expire after ~14 days if your phone is offline.${NC}\n"
     echo ""
-    if ask_yn "Configure WhatsApp?" "n"; then
+    if ask_yn "Configure WhatsApp?" "n" "WA_ENABLED"; then
         WA_ENABLED=true
         ask "Bridge port" WA_BRIDGE_PORT "3001"
         while true; do
@@ -756,7 +1014,7 @@ wizard() {
     fi
     echo ""
 
-    if ask_yn "Configure Feishu (Lark)?" "n"; then
+    if ask_yn "Configure Feishu (Lark)?" "n" "FEISHU_ENABLED"; then
         FS_ENABLED=true
         ask "App ID" FS_APP_ID ""
         ask "App Secret" FS_SECRET "" true
@@ -765,7 +1023,7 @@ wizard() {
     fi
     echo ""
 
-    if ask_yn "Configure MaixCAM?" "n"; then
+    if ask_yn "Configure MaixCAM?" "n" "MAIXCAM_ENABLED"; then
         MC_ENABLED=true
         ask "Listen host" MC_HOST "0.0.0.0"
         ask "Listen port" MC_PORT "18790"
@@ -774,27 +1032,27 @@ wizard() {
 
     # ── 9. Gateway ──
     step "9/14" "Gateway Settings"
-    echo -e "  ${DIM}Gateway binds to host:port for all channel traffic.${NC}\n"
+    printf "  ${DIM}Gateway binds to host:port for all channel traffic.${NC}\n"
     ask "Host" GW_HOST "0.0.0.0"
     ask "Port" GW_PORT "18790"
     separator
 
     # ── 10. FTP Server ──
     step "10/14" "FTP Server"
-    echo -e "  ${DIM}Full-access FTP server for remote file management.${NC}"
-    echo -e "  ${DIM}Uses vsftpd — lightweight, secure, systemd-managed.${NC}\n"
-    echo -e "  ${BOLD}What it does:${NC}"
-    echo -e "    ${GREEN}•${NC} Creates a dedicated FTP user with full filesystem access"
-    echo -e "    ${GREEN}•${NC} Configurable username, password, and port"
-    echo -e "    ${GREEN}•${NC} Optional TLS encryption (self-signed certificate)"
-    echo -e "    ${GREEN}•${NC} Passive mode with configurable port range"
-    echo -e "    ${GREEN}•${NC} Managed via systemd (starts on boot, auto-restarts)"
-    echo -e "    ${GREEN}•${NC} CLI management: ${CYAN}picoclaw ftp${NC}"
+    printf "  ${DIM}Full-access FTP server for remote file management.${NC}\n"
+    printf "  ${DIM}Uses vsftpd — lightweight, secure, systemd-managed.${NC}\n"
+    printf "  ${BOLD}What it does:${NC}\n"
+    printf "    ${GREEN}•${NC} Creates a dedicated FTP user with full filesystem access\n"
+    printf "    ${GREEN}•${NC} Configurable username, password, and port\n"
+    printf "    ${GREEN}•${NC} Optional TLS encryption (self-signed certificate)\n"
+    printf "    ${GREEN}•${NC} Passive mode with configurable port range\n"
+    printf "    ${GREEN}•${NC} Managed via systemd (starts on boot, auto-restarts)\n"
+    printf "    ${GREEN}•${NC} CLI management: ${CYAN}picoclaw ftp${NC}\n"
     echo ""
-    echo -e "  ${YELLOW}⚠ The FTP user will have read/write access to the ENTIRE filesystem.${NC}"
-    echo -e "  ${YELLOW}  Only enable this if you trust your network or use TLS + strong password.${NC}"
+    printf "  ${YELLOW}⚠ The FTP user will have read/write access to the ENTIRE filesystem.${NC}\n"
+    printf "  ${YELLOW}  Only enable this if you trust your network or use TLS + strong password.${NC}\n"
     echo ""
-    if ask_yn "Configure FTP server?" "y"; then
+    if ask_yn "Configure FTP server?" "y" "SETUP_FTP"; then
         SETUP_FTP=true
         echo ""
         ask "FTP username" FTP_USER "root"
@@ -822,9 +1080,9 @@ wizard() {
         ask "Passive mode min port" FTP_PASV_MIN "40000"
         ask "Passive mode max port" FTP_PASV_MAX "40100"
         echo ""
-        echo -e "  ${DIM}TLS encrypts FTP traffic. A self-signed certificate will be generated.${NC}"
-        echo -e "  ${DIM}Recommended if FTP is exposed to the internet.${NC}\n"
-        if ask_yn "Enable TLS encryption?" "y"; then
+        printf "  ${DIM}TLS encrypts FTP traffic. A self-signed certificate will be generated.${NC}\n"
+        printf "  ${DIM}Recommended if FTP is exposed to the internet.${NC}\n"
+        if ask_yn "Enable TLS encryption?" "y" "FTP_TLS"; then
             FTP_TLS=true
         else
             FTP_TLS=false
@@ -834,8 +1092,8 @@ wizard() {
 
     # ── 11. Systemd ──
     step "11/14" "24/7 Service"
-    echo -e "  ${DIM}systemd service + watchdog timer + cron @reboot fallback${NC}\n"
-    if ask_yn "Enable 24/7 systemd service?" "y"; then
+    printf "  ${DIM}systemd service + watchdog timer + cron @reboot fallback${NC}\n"
+    if ask_yn "Enable 24/7 systemd service?" "y" "SETUP_SYSTEMD"; then
         SETUP_SYSTEMD=true
     else
         SETUP_SYSTEMD=false
@@ -844,10 +1102,10 @@ wizard() {
 
     # ── 12. Backup ──
     step "12/14" "Automatic Backups"
-    echo -e "  ${DIM}Full snapshot of config, workspace, skills, binary, and systemd units${NC}"
-    echo -e "  ${DIM}Stored in ${BACKUP_DIR}/backup_MMddyy_HHmmss/${NC}"
-    echo -e "  ${DIM}Old backups are automatically purged beyond max retention count.${NC}\n"
-    if ask_yn "Enable automatic backups?" "y"; then
+    printf "  ${DIM}Full snapshot of config, workspace, skills, binary, and systemd units${NC}\n"
+    printf "  ${DIM}Stored in ${BACKUP_DIR}/backup_MMddyy_HHmmss/${NC}\n"
+    printf "  ${DIM}Old backups are automatically purged beyond max retention count.${NC}\n"
+    if ask_yn "Enable automatic backups?" "y" "SETUP_AUTOBACKUP"; then
         SETUP_AUTOBACKUP=true
         ask "Backup every N days" BACKUP_INTERVAL_DAYS "6"
         while true; do
@@ -872,20 +1130,20 @@ wizard() {
 
     # ── 13. Atlas Skills ──
     step "13/14" "Atlas Skills Repository"
-    echo -e "  ${DIM}Atlas is a community repository of skills for PicoClaw.${NC}"
-    echo -e "  ${DIM}${ATLAS_REPO_URL}${NC}\n"
-    echo -e "  ${BOLD}What it does:${NC}"
-    echo -e "    ${GREEN}•${NC} Dynamically discovers all available skills from the Atlas repository"
-    echo -e "    ${GREEN}•${NC} Downloads and installs every skill into your workspace"
-    echo -e "    ${GREEN}•${NC} Each skill follows the AgentSkills standard (SKILL.md + references)"
-    echo -e "    ${GREEN}•${NC} Skills extend what your PicoClaw agent can do"
-    echo -e "    ${GREEN}•${NC} Includes management CLI: ${CYAN}picoclaw atlas${NC}"
+    printf "  ${DIM}Atlas is a community repository of skills for PicoClaw.${NC}\n"
+    printf "  ${DIM}${ATLAS_REPO_URL}${NC}\n"
+    printf "  ${BOLD}What it does:${NC}\n"
+    printf "    ${GREEN}•${NC} Dynamically discovers all available skills from the Atlas repository\n"
+    printf "    ${GREEN}•${NC} Downloads and installs every skill into your workspace\n"
+    printf "    ${GREEN}•${NC} Each skill follows the AgentSkills standard (SKILL.md + references)\n"
+    printf "    ${GREEN}•${NC} Skills extend what your PicoClaw agent can do\n"
+    printf "    ${GREEN}•${NC} Includes management CLI: ${CYAN}picoclaw atlas${NC}\n"
     echo ""
-    echo -e "  ${DIM}Skills are discovered at install time via the GitHub API.${NC}"
-    echo -e "  ${DIM}Nothing is hardcoded — any new skill added to the repository${NC}"
-    echo -e "  ${DIM}will be automatically found and installed.${NC}"
+    printf "  ${DIM}Skills are discovered at install time via the GitHub API.${NC}\n"
+    printf "  ${DIM}Nothing is hardcoded — any new skill added to the repository${NC}\n"
+    printf "  ${DIM}will be automatically found and installed.${NC}\n"
     echo ""
-    if ask_yn "Install all Atlas skills?" "y"; then
+    if ask_yn "Install all Atlas skills?" "y" "SETUP_ATLAS"; then
         SETUP_ATLAS=true
     else
         SETUP_ATLAS=false
@@ -894,53 +1152,53 @@ wizard() {
 
     # ── 14. Summary ──
     step "14/14" "Review & Confirm"
-    echo -e "\n  ${BOLD}Summary${NC}\n"
-    echo -e "  Install:     ${INSTALL_FROM}"
-    echo -e "  Performance: ${SETUP_PERFORMANCE}"
+    printf '%s\n' "  ${BOLD}Summary${NC}"
+    printf '%s\n' "  Install:     ${INSTALL_FROM}"
+    printf '%s\n' "  Performance: ${SETUP_PERFORMANCE}"
     if [[ "$SETUP_PERFORMANCE" == "true" ]]; then
-        echo -e "               ${YELLOW}→ mandatory reboot after installation${NC}"
+        printf '%s\n' "               ${YELLOW}→ mandatory reboot after installation${NC}"
     fi
-    echo -e "  Provider:    ${LLM_PROVIDER} → ${BOLD}${LLM_MODEL}${NC}"
-    if [[ -n "$LLM_API_BASE" ]]; then echo -e "  API base:    ${LLM_API_BASE}"; fi
+    printf '%s\n' "  Provider:    ${LLM_PROVIDER} → ${BOLD}${LLM_MODEL}${NC}"
+    if [[ -n "$LLM_API_BASE" ]]; then printf '%s\n' "  API base:    ${LLM_API_BASE}"; fi
     if [[ "$SETUP_OLLAMA" == "true" ]]; then
-        echo -e "  Ollama:      ${GREEN}enabled${NC} (model: ${BOLD}${OLLAMA_MODEL}${NC}, ctx: ${OLLAMA_NUM_CTX})"
-        echo -e "               ${DIM}API: ${OLLAMA_API_BASE} (routed via vllm slot)${NC}"
-        echo -e "               ${YELLOW}→ model download ~0.4-5GB after installation${NC}"
+        printf '%s\n' "  Ollama:      ${GREEN}enabled${NC} (model: ${BOLD}${OLLAMA_MODEL}${NC}, ctx: ${OLLAMA_NUM_CTX})"
+        printf '%s\n' "               ${DIM}API: ${OLLAMA_API_BASE} (routed via vllm slot)${NC}"
+        printf '%s\n' "               ${YELLOW}→ model download ~0.4-5GB after installation${NC}"
     fi
-    if [[ -n "$GROQ_EXTRA_KEY" ]]; then echo -e "  Groq voice:  configured"; fi
-    if [[ -n "$BRAVE_API_KEY" ]]; then echo -e "  Brave:       configured"; fi
-    echo -e "  Telegram:    ${TG_ENABLED}"
+    if [[ -n "$GROQ_EXTRA_KEY" ]]; then printf '%s\n' "  Groq voice:  configured"; fi
+    if [[ -n "$BRAVE_API_KEY" ]]; then printf '%s\n' "  Brave:       configured"; fi
+    printf '%s\n' "  Telegram:    ${TG_ENABLED}"
     if [[ "$TG_ENABLED" == "true" && -n "$TG_USERNAME" ]]; then
-        echo -e "               ${DIM}user: ${TG_USER_ID}|${TG_USERNAME}${NC}"
+        printf '%s\n' "               ${DIM}user: ${TG_USER_ID}|${TG_USERNAME}${NC}"
     fi
-    echo -e "  Discord:     ${DC_ENABLED}"
+    printf '%s\n' "  Discord:     ${DC_ENABLED}"
     if [[ "$DC_ENABLED" == "true" && -n "$DC_USERNAME" ]]; then
-        echo -e "               ${DIM}user: ${DC_USER_ID}|${DC_USERNAME}${NC}"
+        printf '%s\n' "               ${DIM}user: ${DC_USER_ID}|${DC_USERNAME}${NC}"
     fi
-    echo -e "  WhatsApp:    ${WA_ENABLED}"
+    printf '%s\n' "  WhatsApp:    ${WA_ENABLED}"
     if [[ "$WA_ENABLED" == "true" ]]; then
-        echo -e "               ${DIM}bridge: ${WA_BRIDGE} (port ${WA_BRIDGE_PORT})${NC}"
+        printf '%s\n' "               ${DIM}bridge: ${WA_BRIDGE} (port ${WA_BRIDGE_PORT})${NC}"
         if [[ -n "$WA_USER_ID" ]]; then
-            echo -e "               ${DIM}user: ${WA_USER_ID}${NC}"
+            printf '%s\n' "               ${DIM}user: ${WA_USER_ID}${NC}"
         fi
-        echo -e "               ${YELLOW}→ QR login will be launched automatically during install${NC}"
+        printf '%s\n' "               ${YELLOW}→ QR login will be launched automatically during install${NC}"
     fi
-    echo -e "  Feishu:      ${FS_ENABLED}"
-    echo -e "  MaixCAM:     ${MC_ENABLED}"
-    echo -e "  Gateway:     ${GW_HOST}:${GW_PORT}"
+    printf '%s\n' "  Feishu:      ${FS_ENABLED}"
+    printf '%s\n' "  MaixCAM:     ${MC_ENABLED}"
+    printf '%s\n' "  Gateway:     ${GW_HOST}:${GW_PORT}"
     if [[ "$SETUP_FTP" == "true" ]]; then
-        echo -e "  FTP:         ${GREEN}enabled${NC} (user: ${FTP_USER}, port: ${FTP_PORT}, TLS: ${FTP_TLS})"
+        printf '%s\n' "  FTP:         ${GREEN}enabled${NC} (user: ${FTP_USER}, port: ${FTP_PORT}, TLS: ${FTP_TLS})"
     else
-        echo -e "  FTP:         disabled"
+        printf '%s\n' "  FTP:         disabled"
     fi
-    echo -e "  Systemd:     ${SETUP_SYSTEMD}"
+    printf '%s\n' "  Systemd:     ${SETUP_SYSTEMD}"
     if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
-        echo -e "  Backup:      every ${BACKUP_INTERVAL_DAYS} days, keep last ${BACKUP_MAX_KEEP}"
+        printf '%s\n' "  Backup:      every ${BACKUP_INTERVAL_DAYS} days, keep last ${BACKUP_MAX_KEEP}"
     else
-        echo -e "  Backup:      manual only (picoclaw backup)"
+        printf '%s\n' "  Backup:      manual only (picoclaw backup)"
     fi
-    echo -e "  Atlas:       ${SETUP_ATLAS}"
-    echo -e "  User:        ${BOLD}root (full access)${NC}"
+    printf '%s\n' "  Atlas:       ${SETUP_ATLAS}"
+    printf '%s\n' "  User:        ${BOLD}root (full access)${NC}"
     echo ""
     ask_yn "Install now?" "y" || { echo "  Cancelled."; exit 0; }
 }
@@ -949,7 +1207,7 @@ wizard() {
 # STEP 1: SYSTEM UPDATE + PACKAGES
 # ════════════════════════════════════════════════
 install_system() {
-    step "1/13" "System Update & Packages"
+    step "1/14" "System Update & Packages"
 
     info "Updating package lists..."
     apt-get update -qq || die "apt-get update failed"
@@ -971,7 +1229,7 @@ install_system() {
         local need_node=true
         if command -v node &>/dev/null; then
             local node_ver=""
-            node_ver=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || node_ver="0"
+            node_ver=$(_node_major)
             if [[ "$node_ver" =~ ^[0-9]+$ ]] && (( node_ver >= 20 )); then
                 need_node=false
                 success "Node.js $(node --version) already installed (>= 20 OK)"
@@ -988,7 +1246,7 @@ install_system() {
                 || die "Node.js install failed"
 
             local installed_ver=""
-            installed_ver=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || installed_ver="0"
+            installed_ver=$(_node_major)
             if [[ "$installed_ver" =~ ^[0-9]+$ ]] && (( installed_ver >= 20 )); then
                 success "Node.js $(node --version) installed"
             else
@@ -1008,7 +1266,7 @@ install_system() {
 # STEP 2: SYSTEM PERFORMANCE OPTIMIZER
 # ════════════════════════════════════════════════
 optimize_system() {
-    step "2/13" "System Performance Optimizer"
+    step "2/14" "System Performance Optimizer"
 
     if [[ "$SETUP_PERFORMANCE" != "true" ]]; then
         info "Skipped — performance optimization not selected"
@@ -1219,7 +1477,7 @@ IOEOF
     for dev in /sys/block/sd* /sys/block/nvme* /sys/block/vd* /sys/block/xvd*; do
         if [[ -f "${dev}/queue/scheduler" ]]; then
             local devname
-            devname=$(basename "$dev")
+            devname="${dev##*/}"
             local rot="1"
             rot=$(cat "${dev}/queue/rotational" 2>/dev/null) || rot="1"
             if [[ "$devname" == nvme* ]]; then
@@ -1266,10 +1524,11 @@ IOEOF
             if [[ "$line" =~ ^[[:space:]]*# || -z "$line" ]]; then
                 continue
             fi
-            local mount_point
-            mount_point=$(echo "$line" | awk '{print $2}')
-            local mount_opts
-            mount_opts=$(echo "$line" | awk '{print $4}')
+            local mount_point mount_opts
+            local -a fields
+            read -ra fields <<< "$line"
+            mount_point="${fields[1]}"
+            mount_opts="${fields[3]}"
             if [[ "$mount_point" == "/" || "$mount_point" == "/home" ]]; then
                 if ! echo "$mount_opts" | grep -q "noatime"; then
                     sed -i "s|${mount_opts}|${mount_opts},noatime|" /etc/fstab 2>/dev/null || true
@@ -1458,7 +1717,9 @@ TMEOF
 
     local disabled_count=0
     for svc in "${disable_services[@]}"; do
-        if systemctl list-unit-files "$svc" 2>/dev/null | grep -qE "enabled|static"; then
+        local state
+        state=$(systemctl is-enabled "$svc" 2>/dev/null) || state="disabled"
+        if [[ "$state" == "enabled" || "$state" == "static" ]]; then
             systemctl disable --now "$svc" 2>/dev/null || true
             systemctl mask "$svc" 2>/dev/null || true
             disabled_count=$((disabled_count + 1))
@@ -1472,7 +1733,9 @@ TMEOF
     )
 
     for tmr in "${disable_timers[@]}"; do
-        if systemctl list-unit-files "$tmr" 2>/dev/null | grep -qE "enabled|static"; then
+        local state
+        state=$(systemctl is-enabled "$tmr" 2>/dev/null) || state="disabled"
+        if [[ "$state" == "enabled" || "$state" == "static" ]]; then
             systemctl disable --now "$tmr" 2>/dev/null || true
             disabled_count=$((disabled_count + 1))
         fi
@@ -1542,43 +1805,43 @@ KSMEOF
     # PERFORMANCE SUMMARY
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     separator
-    echo -e "  ${GREEN}${BOLD}Performance Optimization Complete${NC}\n"
-    echo -e "  ${BOLD}Applied:${NC}"
-    echo -e "    ${CK} TCP BBR congestion control"
-    echo -e "    ${CK} Network: 60+ sysctl parameters (buffers, backlog, keepalive)"
-    echo -e "    ${CK} Memory: swappiness=10, dirty page tuning, vfs pressure=50"
-    echo -e "    ${CK} File limits: 1M open files, 512K processes"
-    echo -e "    ${CK} I/O scheduler: auto-detected (SSD/HDD/NVMe)"
+    printf "  ${GREEN}${BOLD}Performance Optimization Complete${NC}\n"
+    printf "  ${BOLD}Applied:${NC}\n"
+    printf "    ${CK} TCP BBR congestion control\n"
+    printf "    ${CK} Network: 60+ sysctl parameters (buffers, backlog, keepalive)\n"
+    printf "    ${CK} Memory: swappiness=10, dirty page tuning, vfs pressure=50\n"
+    printf "    ${CK} File limits: 1M open files, 512K processes\n"
+    printf "    ${CK} I/O scheduler: auto-detected (SSD/HDD/NVMe)\n"
     if [[ "$has_ssd" == "true" ]]; then
-        echo -e "    ${CK} SSD TRIM: weekly fstrim"
+        printf "    ${CK} SSD TRIM: weekly fstrim\n"
     fi
-    echo -e "    ${CK} Filesystem: noatime (reduced disk writes)"
-    echo -e "    ${CK} tmpfs /tmp: ${tmpfs_mb}MB RAM-backed"
-    echo -e "    ${CK} zram: compressed swap (${zram_percent:-50}% of RAM)"
-    echo -e "    ${CK} DNS: Cloudflare 1.1.1.1 + Google 8.8.8.8"
-    echo -e "    ${CK} Journald: capped at 200MB"
-    echo -e "    ${CK} Systemd: faster timeouts (15s/10s)"
-    echo -e "    ${CK} Disabled ${disabled_count} unnecessary service(s)"
+    printf "    ${CK} Filesystem: noatime (reduced disk writes)\n"
+    printf "    ${CK} tmpfs /tmp: ${tmpfs_mb}MB RAM-backed\n"
+    printf "    ${CK} zram: compressed swap (${zram_percent:-50}% of RAM)\n"
+    printf "    ${CK} DNS: Cloudflare 1.1.1.1 + Google 8.8.8.8\n"
+    printf "    ${CK} Journald: capped at 200MB\n"
+    printf "    ${CK} Systemd: faster timeouts (15s/10s)\n"
+    printf "    ${CK} Disabled ${disabled_count} unnecessary service(s)\n"
     if [[ $num_cpus -gt 1 ]]; then
-        echo -e "    ${CK} IRQ balancing: multi-core"
+        printf "    ${CK} IRQ balancing: multi-core\n"
     fi
     if [[ -f /sys/kernel/mm/lru_gen/enabled ]]; then
-        echo -e "    ${CK} MGLRU: multi-gen LRU memory management"
+        printf "    ${CK} MGLRU: multi-gen LRU memory management\n"
     fi
-    echo -e "    ${CK} KSM: kernel samepage merging"
-    echo -e "    ${CK} Disk cleanup: apt cache + journals"
+    printf "    ${CK} KSM: kernel samepage merging\n"
+    printf "    ${CK} Disk cleanup: apt cache + journals\n"
     echo ""
-    echo -e "  ${DIM}Backup of originals: ${bk_dir}${NC}"
-    echo -e "  ${DIM}Sysctl config: /etc/sysctl.d/99-picoclaw-performance.conf${NC}"
-    echo -e "  ${DIM}Limits config: /etc/security/limits.d/99-picoclaw-performance.conf${NC}"
-    echo -e "  ${YELLOW}${BOLD}⚠ A mandatory reboot will be required at the end of installation.${NC}"
+    printf "  ${DIM}Backup of originals: ${bk_dir}${NC}\n"
+    printf "  ${DIM}Sysctl config: /etc/sysctl.d/99-picoclaw-performance.conf${NC}\n"
+    printf "  ${DIM}Limits config: /etc/security/limits.d/99-picoclaw-performance.conf${NC}\n"
+    printf "  ${YELLOW}${BOLD}⚠ A mandatory reboot will be required at the end of installation.${NC}\n"
 }
 
 # ════════════════════════════════════════════════
 # STEP 3: GO COMPILER (source build only)
 # ════════════════════════════════════════════════
 install_go() {
-    step "3/13" "Go ${GO_VERSION} Compiler"
+    step "3/14" "Go ${GO_VERSION} Compiler"
 
     if [[ "$INSTALL_FROM" != "source" ]]; then
         success "Skipped (using pre-built binary)"
@@ -1589,8 +1852,9 @@ install_go() {
         local cur
         cur=$(go version 2>/dev/null | grep -oP 'go\K[0-9]+\.[0-9]+' || echo "0.0")
         local major minor
-        major=$(echo "$cur" | cut -d. -f1)
-        minor=$(echo "$cur" | cut -d. -f2)
+        major="${cur%%.*}"
+        minor="${cur#*.}"
+        minor="${minor%%.*}"
         if [[ "$major" -ge 1 && "$minor" -ge 24 ]]; then
             success "Go $(go version | grep -oP 'go[0-9.]+') already installed (>= 1.24 OK)"
             return 0
@@ -1599,7 +1863,7 @@ install_go() {
     fi
 
     local arch go_file go_sha
-    arch=$(uname -m)
+    arch=$ARCH
     case "$arch" in
         x86_64)  go_file="go${GO_VERSION}.linux-amd64.tar.gz";   go_sha="$GO_SHA_AMD64" ;;
         aarch64) go_file="go${GO_VERSION}.linux-arm64.tar.gz";   go_sha="$GO_SHA_ARM64" ;;
@@ -1662,10 +1926,10 @@ install_picoclaw() {
 }
 
 install_picoclaw_binary() {
-    step "4/13" "PicoClaw ${PICOCLAW_VERSION} (pre-built binary)"
+    step "4/14" "PicoClaw ${PICOCLAW_VERSION} (pre-built binary)"
 
     local arch asset pc_sha
-    arch=$(uname -m)
+    arch=$ARCH
     case "$arch" in
         x86_64)  asset="picoclaw-linux-amd64";   pc_sha="$PC_SHA_AMD64" ;;
         aarch64) asset="picoclaw-linux-arm64";    pc_sha="$PC_SHA_ARM64" ;;
@@ -1709,14 +1973,16 @@ install_picoclaw_binary() {
         for skill_dir in "$PICOCLAW_SRC/skills"/*/; do
             if [[ -f "${skill_dir}SKILL.md" ]]; then
                 cp -r "$skill_dir" "${WORKSPACE_DIR}/skills/"
-                success "Skill: $(basename "$skill_dir")"
+                local skill_name="${skill_dir%/}"
+                skill_name="${skill_name##*/}"
+                success "Skill: $skill_name"
             fi
         done
     fi
 }
 
 install_picoclaw_source() {
-    step "4/13" "PicoClaw ${PICOCLAW_VERSION} (build from source)"
+    step "4/14" "PicoClaw ${PICOCLAW_VERSION} (build from source)"
 
     export PATH="/usr/local/go/bin:/root/go/bin:$PATH"
     export GOPATH="/root/go"
@@ -1773,7 +2039,7 @@ install_picoclaw_source() {
 # STEP 5: ONBOARD
 # ════════════════════════════════════════════════
 init_picoclaw() {
-    step "5/13" "Initializing PicoClaw Workspace"
+    step "5/14" "Initializing PicoClaw Workspace"
 
     mkdir -p "$CONFIG_DIR" "$WORKSPACE_DIR"
     echo "y" | timeout 30 "$PICOCLAW_REAL" onboard 2>/dev/null || true
@@ -1786,10 +2052,56 @@ init_picoclaw() {
 }
 
 # ════════════════════════════════════════════════
+# SKILL.MD DESCRIPTION HELPER
+# Extracts the description from SKILL.md YAML frontmatter
+# ════════════════════════════════════════════════
+_extract_skill_description() {
+    local skill_md="$1"
+    local desc="" in_frontmatter=false
+    while IFS= read -r mdline; do
+        if [[ "$mdline" == "---" ]]; then
+            if [[ "$in_frontmatter" == "true" ]]; then
+                break
+            fi
+            in_frontmatter=true
+            continue
+        fi
+        if [[ "$in_frontmatter" == "true" ]]; then
+            if [[ "$mdline" =~ ^description:[[:space:]]*(.*) ]]; then
+                desc="${BASH_REMATCH[1]}"
+                desc="${desc#>}"
+                desc="${desc#"${desc%%[![:space:]]*}"}"
+                break
+            fi
+        fi
+    done < "$skill_md" 2>/dev/null || true
+    printf '%s' "${desc:0:80}"
+}
+
+_extract_atlas_category() {
+    local origin_file="$1"
+    local cat="unknown"
+    if [[ -f "$origin_file" ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" == category:* ]]; then
+                cat="${line#category:}"
+                cat="${cat#"${cat%%[![:space:]]*}"}"
+                cat="${cat//[[:space:]]/}"
+                break
+            fi
+        done < "$origin_file"
+    fi
+    if [[ -z "$cat" ]]; then
+        cat="unknown"
+    fi
+    printf '%s' "$cat"
+}
+
+# ════════════════════════════════════════════════
 # STEP 6: ATLAS SKILLS REPOSITORY
 # ════════════════════════════════════════════════
 install_atlas_skills() {
-    step "6/13" "Atlas Skills Repository"
+    step "6/14" "Atlas Skills Repository"
 
     if [[ "$SETUP_ATLAS" != "true" ]]; then
         info "Skipped — Atlas skills not selected"
@@ -1868,7 +2180,7 @@ install_atlas_skills() {
         local s_cat="${skill_categories[$i]}"
         local target_dir="${ATLAS_SKILLS_DIR}/${s_name}"
 
-        echo -e "  ${AR} Installing: ${BOLD}${s_name}${NC} ${DIM}(${s_cat})${NC}"
+        printf '%s\n' "  ${AR} Installing: ${BOLD}${s_name}${NC} ${DIM}(${s_cat})${NC}"
 
         local -a file_paths=()
         while IFS= read -r fpath; do
@@ -1908,8 +2220,7 @@ install_atlas_skills() {
         for fpath in "${file_paths[@]}"; do
             local rel_path="${fpath#${s_path}/}"
             local target_file="${target_dir}/${rel_path}"
-            local target_file_dir
-            target_file_dir=$(dirname "$target_file")
+            local target_file_dir="${target_file%/*}"
 
             mkdir -p "$target_file_dir"
 
@@ -1923,13 +2234,7 @@ install_atlas_skills() {
 
         if [[ -f "${target_dir}/SKILL.md" ]]; then
             local desc=""
-            desc=$(sed -n '/^---$/,/^---$/p' "${target_dir}/SKILL.md" 2>/dev/null \
-                | grep -E "^description:" 2>/dev/null \
-                | head -1 \
-                | sed 's/^description:[[:space:]]*//' \
-                | sed 's/^>//' \
-                | sed 's/^[[:space:]]*//' \
-                | head -c 80) || true
+            desc=$(_extract_skill_description "${target_dir}/SKILL.md")
 
             success "  ${s_name}: ${file_count} files${DIM}$(if [[ -n "$desc" ]]; then echo " — ${desc}"; fi)${NC}"
             installed_count=$((installed_count + 1))
@@ -1944,16 +2249,16 @@ install_atlas_skills() {
 
     # ── 6e. Summary ──
     separator
-    echo -e "  ${GREEN}${BOLD}Atlas Skills Installation Complete${NC}\n"
-    echo -e "  ${BOLD}Installed:${NC} ${installed_count} skill(s)"
+    printf "  ${GREEN}${BOLD}Atlas Skills Installation Complete${NC}\n"
+    printf "  ${BOLD}Installed:${NC} ${installed_count} skill(s)\n"
     if [[ $failed_count -gt 0 ]]; then
-        echo -e "  ${BOLD}Failed:${NC}    ${failed_count} skill(s)"
+        printf "  ${BOLD}Failed:${NC}    ${failed_count} skill(s)\n"
     fi
-    echo -e "  ${BOLD}Location:${NC}  ${ATLAS_SKILLS_DIR}/"
-    echo -e "  ${BOLD}Source:${NC}    ${ATLAS_REPO_URL}"
+    printf "  ${BOLD}Location:${NC}  ${ATLAS_SKILLS_DIR}/\n"
+    printf "  ${BOLD}Source:${NC}    ${ATLAS_REPO_URL}\n"
     echo ""
-    echo -e "  ${DIM}Manage with: picoclaw atlas${NC}"
-    echo -e "  ${DIM}Update all:  picoclaw atlas update${NC}"
+    printf "  ${DIM}Manage with: picoclaw atlas${NC}\n"
+    printf "  ${DIM}Update all:  picoclaw atlas update${NC}\n"
 }
 
 _atlas_install_via_git() {
@@ -1986,10 +2291,10 @@ _atlas_install_via_git() {
                 continue
             fi
 
-            local s_name
-            s_name=$(basename "$skill_dir")
-            local s_cat
-            s_cat=$(basename "$category_dir")
+            local s_name="${skill_dir%/}"
+            s_name="${s_name##*/}"
+            local s_cat="${category_dir%/}"
+            s_cat="${s_cat##*/}"
             local target_dir="${ATLAS_SKILLS_DIR}/${s_name}"
 
             mkdir -p "$target_dir"
@@ -1997,16 +2302,19 @@ _atlas_install_via_git() {
             cp -a "${skill_dir}".* "$target_dir/" 2>/dev/null || true
 
             local desc=""
-            desc=$(sed -n '/^---$/,/^---$/p' "${target_dir}/SKILL.md" 2>/dev/null \
-                | grep -E "^description:" 2>/dev/null \
-                | head -1 \
-                | sed 's/^description:[[:space:]]*//' \
-                | sed 's/^>//' \
-                | sed 's/^[[:space:]]*//' \
-                | head -c 80) || true
+            desc=$(_extract_skill_description "${target_dir}/SKILL.md")
 
-            local file_count
-            file_count=$(find "$target_dir" -type f 2>/dev/null | wc -l) || file_count="?"
+            # Count top-level files only (not recursive). Acceptable trade-off
+            # to avoid forking find; most skills are single-directory.
+            local file_count=0
+            shopt -s nullglob dotglob
+            local -a files=("$target_dir"/*)
+            for f in "${files[@]}"; do
+                if [[ -f "$f" ]]; then
+                    file_count=$((file_count + 1))
+                fi
+            done
+            shopt -u nullglob dotglob
 
             success "  ${s_name} (${s_cat}): ${file_count} files${DIM}$(if [[ -n "$desc" ]]; then echo " — ${desc}"; fi)${NC}"
             installed_count=$((installed_count + 1))
@@ -2019,12 +2327,12 @@ _atlas_install_via_git() {
 
     if [[ $installed_count -gt 0 ]]; then
         separator
-        echo -e "  ${GREEN}${BOLD}Atlas Skills Installation Complete (via git clone)${NC}\n"
-        echo -e "  ${BOLD}Installed:${NC} ${installed_count} skill(s)"
-        echo -e "  ${BOLD}Location:${NC}  ${ATLAS_SKILLS_DIR}/"
-        echo -e "  ${BOLD}Source:${NC}    ${ATLAS_REPO_URL}"
+        printf "  ${GREEN}${BOLD}Atlas Skills Installation Complete (via git clone)${NC}\n"
+        printf "  ${BOLD}Installed:${NC} ${installed_count} skill(s)\n"
+        printf "  ${BOLD}Location:${NC}  ${ATLAS_SKILLS_DIR}/\n"
+        printf "  ${BOLD}Source:${NC}    ${ATLAS_REPO_URL}\n"
         echo ""
-        echo -e "  ${DIM}Manage with: picoclaw atlas${NC}"
+        printf "  ${DIM}Manage with: picoclaw atlas${NC}\n"
     else
         warn "No skills found in Atlas repository"
     fi
@@ -2039,19 +2347,17 @@ _atlas_write_metadata() {
         if [[ ! -f "${skill_dir}SKILL.md" ]]; then
             continue
         fi
-        local sname
-        sname=$(basename "$skill_dir")
+        local sname="${skill_dir%/}"
+        sname="${sname##*/}"
 
         local sver="unknown"
         if [[ -f "${skill_dir}VERSION" ]]; then
-            sver=$(head -1 "${skill_dir}VERSION" 2>/dev/null | tr -d '[:space:]') || sver="unknown"
+            sver=$(head -1 "${skill_dir}VERSION" 2>/dev/null) || sver="unknown"
+            sver="${sver//[[:space:]]/}"
         fi
 
-        local scat="unknown"
-        if [[ -f "${skill_dir}.atlas-origin" ]]; then
-            scat=$(grep -E "^category:" "${skill_dir}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || scat="unknown"
-        fi
+        local scat=""
+        scat=$(_extract_atlas_category "${skill_dir}.atlas-origin")
 
         if [[ "$first" == "true" ]]; then
             first=false
@@ -2082,7 +2388,7 @@ METAEOF
 # STEP 7: WRITE CONFIG
 # ════════════════════════════════════════════════
 write_config() {
-    step "7/13" "Writing Configuration"
+    step "7/14" "Writing Configuration"
 
     mkdir -p "$CONFIG_DIR" "$WORKSPACE_DIR"
 
@@ -2302,48 +2608,57 @@ CFGEOF
     cat > "$BACKUP_META_FILE" << BKCONF
 # PicoClaw Backup Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-BACKUP_DIR="${BACKUP_DIR}"
-BACKUP_MAX_KEEP="${BACKUP_MAX_KEEP}"
-BACKUP_INTERVAL_DAYS="${BACKUP_INTERVAL_DAYS}"
-BACKUP_AUTO_ENABLED="${SETUP_AUTOBACKUP}"
+BACKUP_DIR='${BACKUP_DIR}'
+BACKUP_MAX_KEEP='${BACKUP_MAX_KEEP}'
+BACKUP_INTERVAL_DAYS='${BACKUP_INTERVAL_DAYS}'
+BACKUP_AUTO_ENABLED='${SETUP_AUTOBACKUP}'
 BKCONF
     success "Backup config → ${BACKUP_META_FILE}"
 
     # ── Write FTP configuration file ──
+    local safe_ftp_user
+    safe_ftp_user="$(shell_escape "$FTP_USER")"
     cat > "$FTP_CONF_FILE" << FTPCONF
 # PicoClaw FTP Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FTP_ENABLED="${SETUP_FTP}"
-FTP_USER="${FTP_USER}"
-FTP_PORT="${FTP_PORT}"
-FTP_PASV_MIN="${FTP_PASV_MIN}"
-FTP_PASV_MAX="${FTP_PASV_MAX}"
-FTP_TLS="${FTP_TLS}"
+FTP_ENABLED='${SETUP_FTP}'
+FTP_USER='${safe_ftp_user}'
+FTP_PORT='${FTP_PORT}'
+FTP_PASV_MIN='${FTP_PASV_MIN}'
+FTP_PASV_MAX='${FTP_PASV_MAX}'
+FTP_TLS='${FTP_TLS}'
 FTPCONF
     success "FTP config → ${FTP_CONF_FILE}"
 
     # ── Write WhatsApp configuration file ──
+    local safe_wa_bridge_dir safe_wa_auth_dir safe_wa_user_id
+    safe_wa_bridge_dir="$(shell_escape "$WA_BRIDGE_DIR")"
+    safe_wa_auth_dir="$(shell_escape "$WA_BRIDGE_AUTH_DIR")"
+    safe_wa_user_id="$(shell_escape "$WA_USER_ID")"
     cat > "$WA_CONF_FILE" << WACONF
 # PicoClaw WhatsApp Bridge Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-WA_ENABLED="${WA_ENABLED}"
-WA_BRIDGE_PORT="${WA_BRIDGE_PORT}"
-WA_BRIDGE_DIR="${WA_BRIDGE_DIR}"
-WA_BRIDGE_AUTH_DIR="${WA_BRIDGE_AUTH_DIR}"
-WA_BRIDGE_SERVICE="${WA_BRIDGE_SERVICE}"
-WA_USER_ID="${WA_USER_ID}"
+WA_ENABLED='${WA_ENABLED}'
+WA_BRIDGE_PORT='${WA_BRIDGE_PORT}'
+WA_BRIDGE_DIR='${safe_wa_bridge_dir}'
+WA_BRIDGE_AUTH_DIR='${safe_wa_auth_dir}'
+WA_BRIDGE_SERVICE='${WA_BRIDGE_SERVICE}'
+WA_USER_ID='${safe_wa_user_id}'
 WACONF
     success "WhatsApp config → ${WA_CONF_FILE}"
 
     # ── Write Ollama configuration file ──
+    local safe_ollama_model safe_ollama_host
+    safe_ollama_model="$(shell_escape "$OLLAMA_MODEL")"
+    safe_ollama_host="$(shell_escape "$OLLAMA_HOST")"
     cat > "$OLLAMA_CONF_FILE" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-OLLAMA_ENABLED="${SETUP_OLLAMA}"
-OLLAMA_MODEL="${OLLAMA_MODEL}"
-OLLAMA_NUM_CTX="${OLLAMA_NUM_CTX}"
-OLLAMA_HOST="${OLLAMA_HOST}"
-OLLAMA_PORT="${OLLAMA_PORT}"
+OLLAMA_ENABLED='${SETUP_OLLAMA}'
+OLLAMA_MODEL='${safe_ollama_model}'
+OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
+OLLAMA_HOST='${safe_ollama_host}'
+OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
     success "Ollama config → ${OLLAMA_CONF_FILE}"
 }
@@ -2352,7 +2667,7 @@ OLLAMACONF
 # STEP 8: WHATSAPP BRIDGE (Baileys/Node.js)
 # ════════════════════════════════════════════════
 install_whatsapp_bridge() {
-    step "8/13" "WhatsApp Bridge (Baileys/Node.js)"
+    step "8/14" "WhatsApp Bridge (Baileys/Node.js)"
 
     if [[ "$WA_ENABLED" != "true" ]]; then
         info "Skipped — WhatsApp not selected"
@@ -2364,7 +2679,7 @@ install_whatsapp_bridge() {
         die "Node.js not found — should have been installed in step 1"
     fi
     local node_major=""
-    node_major=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || node_major="0"
+    node_major=$(_node_major)
     if [[ "$node_major" =~ ^[0-9]+$ ]] && (( node_major >= 20 )); then
         success "Node.js $(node --version) verified (>= 20)"
     else
@@ -2467,28 +2782,30 @@ WASVCEOF
     success "Service: ${WA_BRIDGE_SERVICE}.service (enabled)"
 
     # ── Auto-login: launch QR scan if no existing session ──
-    if [[ "$has_existing_session" != "true" ]]; then
+    if [[ "$has_existing_session" != "true" && "$CONFIG_LOADED" == "true" ]]; then
+        info "Non-interactive mode — skipping QR login. Run: picoclaw whatsapp login"
+    elif [[ "$has_existing_session" != "true" ]]; then
         separator
-        echo -e "  ${YELLOW}${BOLD}WhatsApp QR Login Required${NC}"
+        printf "  ${YELLOW}${BOLD}WhatsApp QR Login Required${NC}\n"
         echo ""
-        echo -e "  ${BOLD}The bridge needs to be linked to your WhatsApp account.${NC}"
-        echo -e "  ${BOLD}A QR code will appear below — scan it with your phone.${NC}"
+        printf "  ${BOLD}The bridge needs to be linked to your WhatsApp account.${NC}\n"
+        printf "  ${BOLD}A QR code will appear below — scan it with your phone.${NC}\n"
         echo ""
-        echo -e "  ${BOLD}Instructions:${NC}"
-        echo -e "    1. A QR code will appear in your terminal"
-        echo -e "    2. Open WhatsApp on your phone"
-        echo -e "    3. Go to ${BOLD}Settings → Linked Devices → Link a Device${NC}"
-        echo -e "    4. Scan the QR code with your phone's camera"
-        echo -e "    5. Wait for ${GREEN}\"Connected\"${NC} message"
-        echo -e "    6. The bridge will ${GREEN}automatically exit${NC} once connected"
+        printf "  ${BOLD}Instructions:${NC}\n"
+        printf "    1. A QR code will appear in your terminal\n"
+        printf "    2. Open WhatsApp on your phone\n"
+        printf "    3. Go to ${BOLD}Settings → Linked Devices → Link a Device${NC}\n"
+        printf "    4. Scan the QR code with your phone's camera\n"
+        printf "    5. Wait for ${GREEN}\"Connected\"${NC} message\n"
+        printf "    6. The bridge will ${GREEN}automatically exit${NC} once connected\n"
         echo ""
-        echo -e "  ${DIM}The session will be saved in ${WA_BRIDGE_AUTH_DIR}/${NC}"
-        echo -e "  ${DIM}Future starts won't need QR scanning.${NC}"
+        printf "  ${DIM}The session will be saved in ${WA_BRIDGE_AUTH_DIR}/${NC}\n"
+        printf "  ${DIM}Future starts won't need QR scanning.${NC}\n"
         echo ""
-        echo -ne "  ${AR} Press Enter to start QR login..."; read -r
+        printf "  ${AR} Press Enter to start QR login..."; read -r
         echo ""
-        echo -e "  ${MAGENTA}🦞${NC} Starting bridge for QR login..."
-        echo -e "  ${DIM}─────── Bridge output below ───────${NC}"
+        printf "  ${MAGENTA}🦞${NC} Starting bridge for QR login...\n"
+        printf "  ${DIM}─────── Bridge output below ───────${NC}\n"
         echo ""
 
         # Run bridge with auto-exit: monitor for creds.json creation
@@ -2523,21 +2840,21 @@ WASVCEOF
         cd /root
 
         echo ""
-        echo -e "  ${DIM}─────── Bridge stopped ───────${NC}"
+        printf "  ${DIM}─────── Bridge stopped ───────${NC}\n"
         echo ""
 
         if [[ "$login_success" == "true" ]]; then
-            echo -e "  ${GREEN}✔${NC} ${BOLD}WhatsApp account linked successfully!${NC}"
-            echo -e "  ${GREEN}✔${NC} Session saved to ${WA_BRIDGE_AUTH_DIR}/creds.json"
+            printf "  ${GREEN}✔${NC} ${BOLD}WhatsApp account linked successfully!${NC}\n"
+            printf "  ${GREEN}✔${NC} Session saved to ${WA_BRIDGE_AUTH_DIR}/creds.json\n"
             has_existing_session=true
         else
             if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-                echo -e "  ${GREEN}✔${NC} ${BOLD}WhatsApp account linked successfully!${NC}"
-                echo -e "  ${GREEN}✔${NC} Session saved to ${WA_BRIDGE_AUTH_DIR}/creds.json"
+                printf "  ${GREEN}✔${NC} ${BOLD}WhatsApp account linked successfully!${NC}\n"
+                printf "  ${GREEN}✔${NC} Session saved to ${WA_BRIDGE_AUTH_DIR}/creds.json\n"
                 has_existing_session=true
             else
-                echo -e "  ${YELLOW}⚠${NC} ${BOLD}QR code was not scanned in time${NC} — no session saved"
-                echo -e "  ${DIM}Run later: picoclaw whatsapp login${NC}"
+                printf "  ${YELLOW}⚠${NC} ${BOLD}QR code was not scanned in time${NC} — no session saved\n"
+                printf "  ${DIM}Run later: picoclaw whatsapp login${NC}\n"
             fi
         fi
     fi
@@ -2567,39 +2884,39 @@ WASVCEOF
 
     # ── Summary ──
     separator
-    echo -e "  ${GREEN}${BOLD}WhatsApp Bridge Installation Complete${NC}\n"
-    echo -e "  ${BOLD}Service:${NC}     ${WA_BRIDGE_SERVICE} (systemd-managed, auto-start on boot)"
-    echo -e "  ${BOLD}Bridge dir:${NC}  ${WA_BRIDGE_DIR}"
-    echo -e "  ${BOLD}Auth dir:${NC}    ${WA_BRIDGE_AUTH_DIR}"
-    echo -e "  ${BOLD}Port:${NC}        ${WA_BRIDGE_PORT}"
-    echo -e "  ${BOLD}Node.js:${NC}     $(node --version 2>/dev/null)"
-    echo -e "  ${BOLD}Compiled:${NC}    ${WA_BRIDGE_DIR}/dist/index.js"
+    printf "  ${GREEN}${BOLD}WhatsApp Bridge Installation Complete${NC}\n"
+    printf "  ${BOLD}Service:${NC}     ${WA_BRIDGE_SERVICE} (systemd-managed, auto-start on boot)\n"
+    printf "  ${BOLD}Bridge dir:${NC}  ${WA_BRIDGE_DIR}\n"
+    printf "  ${BOLD}Auth dir:${NC}    ${WA_BRIDGE_AUTH_DIR}\n"
+    printf "  ${BOLD}Port:${NC}        ${WA_BRIDGE_PORT}\n"
+    printf "  ${BOLD}Node.js:${NC}     $(node --version 2>/dev/null)\n"
+    printf "  ${BOLD}Compiled:${NC}    ${WA_BRIDGE_DIR}/dist/index.js\n"
     if [[ "$has_existing_session" == "true" ]]; then
-        echo -e "  ${BOLD}Session:${NC}     ${GREEN}linked${NC} (creds.json found)"
+        printf "  ${BOLD}Session:${NC}     ${GREEN}linked${NC} (creds.json found)\n"
     else
-        echo -e "  ${BOLD}Session:${NC}     ${RED}not linked${NC} — QR scan required"
+        printf "  ${BOLD}Session:${NC}     ${RED}not linked${NC} — QR scan required\n"
     fi
     echo ""
     if [[ "$has_existing_session" != "true" ]]; then
-        echo -e "  ${YELLOW}${BOLD}⚠  You must link your WhatsApp account:${NC}"
+        printf "  ${YELLOW}${BOLD}⚠  You must link your WhatsApp account:${NC}\n"
         echo ""
-        echo -e "    ${CYAN}picoclaw whatsapp login${NC}"
+        printf "    ${CYAN}picoclaw whatsapp login${NC}\n"
         echo ""
-        echo -e "  ${DIM}This will display a QR code in your terminal.${NC}"
-        echo -e "  ${DIM}Open WhatsApp on your phone → Settings → Linked Devices →${NC}"
-        echo -e "  ${DIM}Link a Device → scan the QR code.${NC}"
-        echo -e "  ${DIM}Once linked, the session persists (no re-scan needed).${NC}"
+        printf "  ${DIM}This will display a QR code in your terminal.${NC}\n"
+        printf "  ${DIM}Open WhatsApp on your phone → Settings → Linked Devices →${NC}\n"
+        printf "  ${DIM}Link a Device → scan the QR code.${NC}\n"
+        printf "  ${DIM}Once linked, the session persists (no re-scan needed).${NC}\n"
         echo ""
     fi
-    echo -e "  ${DIM}Manage: picoclaw whatsapp${NC}"
-    echo -e "  ${DIM}Logs:   picoclaw whatsapp logs${NC}"
+    printf "  ${DIM}Manage: picoclaw whatsapp${NC}\n"
+    printf "  ${DIM}Logs:   picoclaw whatsapp logs${NC}\n"
 }
 
 # ════════════════════════════════════════════════
-# STEP 8.5: OLLAMA (Local LLM Server)
+# STEP 9: OLLAMA (Local LLM Server)
 # ════════════════════════════════════════════════
 install_ollama() {
-    step "8.5/13" "Installing Ollama (Local LLM Server)"
+    step "9/14" "Installing Ollama (Local LLM Server)"
 
     if [[ "$SETUP_OLLAMA" != "true" ]]; then
         info "Skipped — Ollama not selected"
@@ -2697,15 +3014,19 @@ MFEOF
     fi
 
     # ── j. Update ollama.conf with custom model name ──
+    local safe_model safe_custom safe_host
+    safe_model="$(shell_escape "$OLLAMA_MODEL")"
+    safe_custom="$(shell_escape "$custom_model_name")"
+    safe_host="$(shell_escape "$OLLAMA_HOST")"
     cat > "$OLLAMA_CONF_FILE" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Updated by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-OLLAMA_ENABLED="${SETUP_OLLAMA}"
-OLLAMA_MODEL="${OLLAMA_MODEL}"
-OLLAMA_CUSTOM_MODEL="${custom_model_name}"
-OLLAMA_NUM_CTX="${OLLAMA_NUM_CTX}"
-OLLAMA_HOST="${OLLAMA_HOST}"
-OLLAMA_PORT="${OLLAMA_PORT}"
+OLLAMA_ENABLED='${SETUP_OLLAMA}'
+OLLAMA_MODEL='${safe_model}'
+OLLAMA_CUSTOM_MODEL='${safe_custom}'
+OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
+OLLAMA_HOST='${safe_host}'
+OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
     success "Ollama config updated → ${OLLAMA_CONF_FILE}"
 
@@ -2718,26 +3039,26 @@ OLLAMACONF
 
     # ── Summary ──
     separator
-    echo -e "  ${GREEN}${BOLD}Ollama Installation Complete${NC}\n"
-    echo -e "  ${BOLD}Service:${NC}     ollama (systemd-managed, auto-start on boot)"
-    echo -e "  ${BOLD}Binary:${NC}      ${OLLAMA_BIN}"
-    echo -e "  ${BOLD}Base model:${NC}  ${OLLAMA_MODEL}"
-    echo -e "  ${BOLD}Custom:${NC}      ${custom_model_name}"
-    echo -e "  ${BOLD}Model size:${NC}  ${model_size}"
-    echo -e "  ${BOLD}Context:${NC}     ${OLLAMA_NUM_CTX} tokens"
-    echo -e "  ${BOLD}API:${NC}         ${OLLAMA_API_BASE}"
-    echo -e "  ${BOLD}Provider:${NC}    routed via vllm slot in config.json"
+    printf "  ${GREEN}${BOLD}Ollama Installation Complete${NC}\n"
+    printf "  ${BOLD}Service:${NC}     ollama (systemd-managed, auto-start on boot)\n"
+    printf "  ${BOLD}Binary:${NC}      ${OLLAMA_BIN}\n"
+    printf "  ${BOLD}Base model:${NC}  ${OLLAMA_MODEL}\n"
+    printf "  ${BOLD}Custom:${NC}      ${custom_model_name}\n"
+    printf "  ${BOLD}Model size:${NC}  ${model_size}\n"
+    printf "  ${BOLD}Context:${NC}     ${OLLAMA_NUM_CTX} tokens\n"
+    printf "  ${BOLD}API:${NC}         ${OLLAMA_API_BASE}\n"
+    printf "  ${BOLD}Provider:${NC}    routed via vllm slot in config.json\n"
     echo ""
-    echo -e "  ${DIM}Manage: picoclaw ollama${NC}"
-    echo -e "  ${DIM}Logs:   picoclaw ollama logs${NC}"
-    echo -e "  ${DIM}Models: picoclaw ollama list${NC}"
+    printf "  ${DIM}Manage: picoclaw ollama${NC}\n"
+    printf "  ${DIM}Logs:   picoclaw ollama logs${NC}\n"
+    printf "  ${DIM}Models: picoclaw ollama list${NC}\n"
 }
 
 # ════════════════════════════════════════════════
-# STEP 9: FTP SERVER (vsftpd)
+# STEP 10: FTP SERVER (vsftpd)
 # ════════════════════════════════════════════════
 install_ftp_server() {
-    step "9/13" "FTP Server (vsftpd)"
+    step "10/14" "FTP Server (vsftpd)"
 
     if [[ "$SETUP_FTP" != "true" ]]; then
         info "Skipped — FTP server not selected"
@@ -2956,29 +3277,29 @@ FTPLREOF
 
     # ── Summary ──
     separator
-    echo -e "  ${GREEN}${BOLD}FTP Server Installation Complete${NC}\n"
-    echo -e "  ${BOLD}Service:${NC}     vsftpd (systemd-managed, auto-start on boot)"
-    echo -e "  ${BOLD}Username:${NC}    ${FTP_USER}"
-    echo -e "  ${BOLD}Port:${NC}        ${FTP_PORT}"
-    echo -e "  ${BOLD}Passive:${NC}     ${FTP_PASV_MIN}-${FTP_PASV_MAX}"
-    echo -e "  ${BOLD}Public IP:${NC}   ${public_ip}"
-    echo -e "  ${BOLD}TLS:${NC}         ${FTP_TLS}"
-    echo -e "  ${BOLD}Access:${NC}      ${RED}Full filesystem (/)${NC}"
-    echo -e "  ${BOLD}Config:${NC}      /etc/vsftpd.conf"
-    echo -e "  ${BOLD}Logs:${NC}        /var/log/vsftpd.log"
+    printf "  ${GREEN}${BOLD}FTP Server Installation Complete${NC}\n"
+    printf "  ${BOLD}Service:${NC}     vsftpd (systemd-managed, auto-start on boot)\n"
+    printf "  ${BOLD}Username:${NC}    ${FTP_USER}\n"
+    printf "  ${BOLD}Port:${NC}        ${FTP_PORT}\n"
+    printf "  ${BOLD}Passive:${NC}     ${FTP_PASV_MIN}-${FTP_PASV_MAX}\n"
+    printf "  ${BOLD}Public IP:${NC}   ${public_ip}\n"
+    printf "  ${BOLD}TLS:${NC}         ${FTP_TLS}\n"
+    printf "  ${BOLD}Access:${NC}      ${RED}Full filesystem (/)${NC}\n"
+    printf "  ${BOLD}Config:${NC}      /etc/vsftpd.conf\n"
+    printf "  ${BOLD}Logs:${NC}        /var/log/vsftpd.log\n"
     echo ""
-    echo -e "  ${DIM}Connect: ftp://${FTP_USER}@${public_ip}:${FTP_PORT}${NC}"
-    echo -e "  ${DIM}Manage:  picoclaw ftp${NC}"
+    printf "  ${DIM}Connect: ftp://${FTP_USER}@${public_ip}:${FTP_PORT}${NC}\n"
+    printf "  ${DIM}Manage:  picoclaw ftp${NC}\n"
     echo ""
-    echo -e "  ${YELLOW}⚠ This FTP user has full read/write access to the entire filesystem.${NC}"
-    echo -e "  ${YELLOW}  Use a strong password and TLS if exposed to the internet.${NC}"
+    printf "  ${YELLOW}⚠ This FTP user has full read/write access to the entire filesystem.${NC}\n"
+    printf "  ${YELLOW}  Use a strong password and TLS if exposed to the internet.${NC}\n"
 }
 
 # ════════════════════════════════════════════════
-# STEP 10: SYSTEMD + REBOOT SURVIVAL + BACKUP CRON
+# STEP 11: SYSTEMD + REBOOT SURVIVAL + BACKUP CRON
 # ════════════════════════════════════════════════
 setup_systemd() {
-    step "10/13" "24/7 Service + Reboot Survival + Backup Schedule"
+    step "11/14" "24/7 Service + Reboot Survival + Backup Schedule"
 
     if [[ "$SETUP_SYSTEMD" != "true" ]]; then
         info "Skipped systemd — start manually: picoclaw start"
@@ -3149,317 +3470,10 @@ ABEOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 11: INITIAL BACKUP
-# ════════════════════════════════════════════════
-initial_backup() {
-    step "11/13" "Initial Backup"
-
-    echo -e "  ${DIM}Creating a snapshot of the freshly installed system.${NC}"
-    echo -e "  ${DIM}This serves as your recovery point if anything changes.${NC}\n"
-
-    if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
-        info "Automatic backups enabled — creating initial snapshot..."
-        _do_backup "initial"
-    else
-        if ask_yn "Create initial backup now?" "y"; then
-            _do_backup "initial"
-        else
-            info "Skipped — create one anytime with: picoclaw backup"
-        fi
-    fi
-}
-
-# ════════════════════════════════════════════════
-# BACKUP ENGINE
-# ════════════════════════════════════════════════
-_do_backup() {
-    local trigger="${1:-manual}"
-    local timestamp
-    timestamp=$(date +"%m%d%y_%H%M%S")
-    local snap_name="backup_${timestamp}"
-    local snap_dir="${BACKUP_DIR}/${snap_name}"
-
-    local bk_max_keep="18"
-    local bk_interval="6"
-    if [[ -f "$BACKUP_META_FILE" ]]; then
-        source "$BACKUP_META_FILE" 2>/dev/null || true
-        bk_max_keep="${BACKUP_MAX_KEEP:-18}"
-        bk_interval="${BACKUP_INTERVAL_DAYS:-6}"
-    fi
-
-    if [[ "$trigger" == "auto" ]]; then
-        local last_auto_file="${BACKUP_DIR}/.last_auto_backup"
-        if [[ -f "$last_auto_file" ]]; then
-            local last_epoch
-            last_epoch=$(cat "$last_auto_file" 2>/dev/null || echo "0")
-            local now_epoch
-            now_epoch=$(date +%s)
-            local elapsed_days=$(( (now_epoch - last_epoch) / 86400 ))
-            if [[ $elapsed_days -lt $bk_interval ]]; then
-                exit 0
-            fi
-        fi
-    fi
-
-    mkdir -p "$snap_dir"
-
-    info "Creating backup: ${snap_name}"
-
-    if [[ -d "$CONFIG_DIR" ]]; then
-        mkdir -p "${snap_dir}/picoclaw_config"
-        cp -a "$CONFIG_DIR"/. "${snap_dir}/picoclaw_config/" 2>/dev/null || true
-        success "Config dir: ~/.picoclaw/ (config.json, workspace, skills, atlas, etc.)"
-    fi
-
-    if [[ -f "$PICOCLAW_REAL" ]]; then
-        cp -a "$PICOCLAW_REAL" "${snap_dir}/" 2>/dev/null || true
-        success "Binary: picoclaw.bin ($(du -h "$PICOCLAW_REAL" | awk '{print $1}'))"
-    fi
-
-    if [[ -f "$PICOCLAW_BIN" ]]; then
-        cp -a "$PICOCLAW_BIN" "${snap_dir}/picoclaw.wrapper" 2>/dev/null || true
-        success "Wrapper: picoclaw (CLI wrapper)"
-    fi
-
-    local has_units=false
-    mkdir -p "${snap_dir}/systemd"
-    for unit_file in /etc/systemd/system/picoclaw-gateway.service \
-                     /etc/systemd/system/picoclaw-watchdog.service \
-                     /etc/systemd/system/picoclaw-watchdog.timer \
-                     "/etc/systemd/system/${WA_BRIDGE_SERVICE}.service"; do
-        if [[ -f "$unit_file" ]]; then
-            cp -a "$unit_file" "${snap_dir}/systemd/" 2>/dev/null || true
-            has_units=true
-        fi
-    done
-    if [[ "$has_units" == "true" ]]; then
-        success "Systemd units: gateway, watchdog, WhatsApp bridge"
-    fi
-
-    local has_cron=false
-    mkdir -p "${snap_dir}/cron"
-    for cron_file in /etc/cron.d/picoclaw-boot /etc/cron.d/picoclaw-autobackup; do
-        if [[ -f "$cron_file" ]]; then
-            cp -a "$cron_file" "${snap_dir}/cron/" 2>/dev/null || true
-            has_cron=true
-        fi
-    done
-    if [[ "$has_cron" == "true" ]]; then
-        success "Cron jobs: boot fallback, auto-backup"
-    fi
-
-    local has_profile=false
-    mkdir -p "${snap_dir}/profile"
-    for prof_file in /etc/profile.d/picoclaw.sh /etc/profile.d/go.sh; do
-        if [[ -f "$prof_file" ]]; then
-            cp -a "$prof_file" "${snap_dir}/profile/" 2>/dev/null || true
-            has_profile=true
-        fi
-    done
-    if [[ "$has_profile" == "true" ]]; then
-        success "Profile scripts: login banner, Go PATH"
-    fi
-
-    if [[ -f /etc/logrotate.d/picoclaw ]]; then
-        mkdir -p "${snap_dir}/logrotate"
-        cp -a /etc/logrotate.d/picoclaw "${snap_dir}/logrotate/" 2>/dev/null || true
-        success "Logrotate config"
-    fi
-
-    local has_perf=false
-    mkdir -p "${snap_dir}/performance"
-    for perf_file in /etc/sysctl.d/99-picoclaw-performance.conf \
-                     /etc/security/limits.d/99-picoclaw-performance.conf \
-                     /etc/udev/rules.d/60-picoclaw-ioscheduler.rules \
-                     /etc/modules-load.d/bbr.conf \
-                     /etc/systemd/journald.conf.d/picoclaw-size.conf \
-                     /etc/systemd/system.conf.d/picoclaw-timeouts.conf \
-                     /etc/systemd/resolved.conf.d/picoclaw-dns.conf \
-                     /etc/tmpfiles.d/picoclaw-mglru.conf \
-                     /etc/tmpfiles.d/picoclaw-ksm.conf \
-                     /etc/default/zramswap; do
-        if [[ -f "$perf_file" ]]; then
-            cp -a "$perf_file" "${snap_dir}/performance/" 2>/dev/null || true
-            has_perf=true
-        fi
-    done
-    if [[ "$has_perf" == "true" ]]; then
-        success "Performance configs: sysctl, limits, I/O, DNS, zram, etc."
-    fi
-
-    # ── FTP backup ──
-    local has_ftp=false
-    mkdir -p "${snap_dir}/ftp"
-    if [[ -f /etc/vsftpd.conf ]]; then
-        cp -a /etc/vsftpd.conf "${snap_dir}/ftp/" 2>/dev/null || true
-        has_ftp=true
-    fi
-    if [[ -f /etc/vsftpd.user_list ]]; then
-        cp -a /etc/vsftpd.user_list "${snap_dir}/ftp/" 2>/dev/null || true
-    fi
-    if [[ -f "$FTP_CONF_FILE" ]]; then
-        cp -a "$FTP_CONF_FILE" "${snap_dir}/ftp/" 2>/dev/null || true
-    fi
-    if [[ -f /etc/logrotate.d/vsftpd-picoclaw ]]; then
-        cp -a /etc/logrotate.d/vsftpd-picoclaw "${snap_dir}/ftp/" 2>/dev/null || true
-    fi
-    if [[ "$has_ftp" == "true" ]]; then
-        success "FTP configs: vsftpd.conf, user_list, ftp.conf"
-    fi
-
-    # ── WhatsApp bridge backup ──
-    local has_wa=false
-    mkdir -p "${snap_dir}/whatsapp"
-    if [[ -d "$WA_BRIDGE_DIR" ]]; then
-        # Copy source files but NOT node_modules
-        mkdir -p "${snap_dir}/whatsapp/bridge"
-        for wa_item in package.json package-lock.json tsconfig.json src; do
-            if [[ -e "${WA_BRIDGE_DIR}/${wa_item}" ]]; then
-                cp -a "${WA_BRIDGE_DIR}/${wa_item}" "${snap_dir}/whatsapp/bridge/" 2>/dev/null || true
-                has_wa=true
-            fi
-        done
-    fi
-    if [[ -d "$WA_BRIDGE_AUTH_DIR" ]]; then
-        mkdir -p "${snap_dir}/whatsapp/auth"
-        cp -a "$WA_BRIDGE_AUTH_DIR"/. "${snap_dir}/whatsapp/auth/" 2>/dev/null || true
-        has_wa=true
-        if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-            success "WhatsApp auth: creds.json (session preserved — critical)"
-        fi
-    fi
-    if [[ -f "$WA_CONF_FILE" ]]; then
-        cp -a "$WA_CONF_FILE" "${snap_dir}/whatsapp/" 2>/dev/null || true
-        has_wa=true
-    fi
-    if [[ -f "/etc/systemd/system/${WA_BRIDGE_SERVICE}.service" ]]; then
-        cp -a "/etc/systemd/system/${WA_BRIDGE_SERVICE}.service" "${snap_dir}/whatsapp/" 2>/dev/null || true
-        has_wa=true
-    fi
-    if [[ "$has_wa" == "true" ]]; then
-        success "WhatsApp: bridge source, auth session, config, systemd unit"
-    fi
-
-    # ── Ollama backup ──
-    local has_ollama=false
-    mkdir -p "${snap_dir}/ollama"
-    if [[ -f "$OLLAMA_CONF_FILE" ]]; then
-        cp -a "$OLLAMA_CONF_FILE" "${snap_dir}/ollama/" 2>/dev/null || true
-        has_ollama=true
-    fi
-    if [[ -f /tmp/picoclaw-modelfile ]]; then
-        cp -a /tmp/picoclaw-modelfile "${snap_dir}/ollama/" 2>/dev/null || true
-    fi
-    if [[ "$has_ollama" == "true" ]]; then
-        success "Ollama: ollama.conf"
-    fi
-
-    if [[ -d "$PICOCLAW_SRC" ]]; then
-        mkdir -p "${snap_dir}/source"
-        rsync -a --exclude='.git' "$PICOCLAW_SRC/" "${snap_dir}/source/" 2>/dev/null || \
-            cp -a "$PICOCLAW_SRC" "${snap_dir}/source/" 2>/dev/null || true
-        success "Source: /opt/picoclaw (excluding .git)"
-    fi
-
-    local pc_ver=""
-    if [[ -x "$PICOCLAW_REAL" ]]; then
-        pc_ver=$("$PICOCLAW_REAL" version 2>/dev/null) || pc_ver="unknown"
-    fi
-    local snap_size
-    snap_size=$(du -sh "$snap_dir" 2>/dev/null | awk '{print $1}') || snap_size="unknown"
-
-    local atlas_count=0
-    if [[ -d "$ATLAS_SKILLS_DIR" ]]; then
-        for _sd in "${ATLAS_SKILLS_DIR}"/*/; do
-            if [[ -f "${_sd}SKILL.md" ]]; then
-                atlas_count=$((atlas_count + 1))
-            fi
-        done
-    fi
-
-    local wa_session_backed=false
-    if [[ -f "${snap_dir}/whatsapp/auth/creds.json" ]]; then
-        wa_session_backed=true
-    fi
-
-    cat > "${snap_dir}/backup.meta" << METAEOF
-{
-  "backup_name": "${snap_name}",
-  "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "timestamp_epoch": $(date +%s),
-  "trigger": "${trigger}",
-  "picoclaw_version": "${pc_ver}",
-  "hostname": "$(hostname 2>/dev/null || echo "unknown")",
-  "arch": "$(uname -m)",
-  "size": "${snap_size}",
-  "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
-  "ftp_configured": ${has_ftp},
-  "whatsapp_configured": ${has_wa},
-  "whatsapp_session_backed": ${wa_session_backed},
-  "ollama_configured": ${has_ollama},
-  "atlas_skills_installed": ${atlas_count},
-  "contents": {
-    "config_dir": true,
-    "binary": $(if [[ -f "${snap_dir}/picoclaw.bin" ]]; then echo "true"; else echo "false"; fi),
-    "wrapper": $(if [[ -f "${snap_dir}/picoclaw.wrapper" ]]; then echo "true"; else echo "false"; fi),
-    "systemd": ${has_units},
-    "cron": ${has_cron},
-    "profile": ${has_profile},
-    "performance": ${has_perf},
-    "ftp": ${has_ftp},
-    "whatsapp": ${has_wa},
-    "ollama": ${has_ollama},
-    "source": $(if [[ -d "${snap_dir}/source" ]]; then echo "true"; else echo "false"; fi)
-  }
-}
-METAEOF
-    success "Metadata: backup.meta"
-
-    if [[ "$trigger" == "auto" ]]; then
-        date +%s > "${BACKUP_DIR}/.last_auto_backup"
-    fi
-
-    _purge_old_backups "$bk_max_keep"
-
-    local total_backups
-    total_backups=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l)
-    echo ""
-    success "Backup complete: ${BOLD}${snap_dir}${NC} (${snap_size})"
-    info "Total backups: ${total_backups} / max ${bk_max_keep}"
-}
-
-_purge_old_backups() {
-    local max_keep="${1:-18}"
-    local -a all_backups=()
-
-    while IFS= read -r d; do
-        if [[ -n "$d" ]]; then
-            all_backups+=("$d")
-        fi
-    done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | sort)
-
-    local count=${#all_backups[@]}
-    if [[ $count -le $max_keep ]]; then
-        return 0
-    fi
-
-    local to_remove=$((count - max_keep))
-    info "Purging ${to_remove} old backup(s) (keeping ${max_keep})..."
-
-    for (( i=0; i<to_remove; i++ )); do
-        local old_dir="${all_backups[$i]}"
-        local old_name
-        old_name=$(basename "$old_dir")
-        rm -rf "$old_dir"
-        success "Purged: ${old_name}"
-    done
-}
-
-# ════════════════════════════════════════════════
 # STEP 12: UNIFIED CLI WRAPPER + LOGIN BANNER
 # ════════════════════════════════════════════════
 install_extras() {
-    step "12/13" "CLI Wrapper & Login Banner"
+    step "12/14" "CLI Wrapper & Login Banner"
 
     cat > "$PICOCLAW_BIN" << 'WRAPEOF'
 #!/usr/bin/env bash
@@ -3506,12 +3520,132 @@ OLLAMA_SVC="ollama"
 G='\033[0;32m'; R='\033[0;31m'; Y='\033[1;33m'
 C='\033[0;36m'; B='\033[1m'; D='\033[2m'; M='\033[0;35m'; N='\033[0m'
 
+# CLI Model Lists — full list for post-install model switching.
+# Intentionally broader than WIZARD_MODELS_* (wizard shows curated subset).
+CLI_MODELS_OPENROUTER="anthropic/claude-sonnet-4.5|Anthropic latest Sonnet, best coding+agents
+anthropic/claude-opus-4.6|Anthropic most powerful, complex challenges
+anthropic/claude-opus-4.5|Anthropic strong all-rounder
+anthropic/claude-opus-4.1|Anthropic capable reasoning
+anthropic/claude-opus-4|Anthropic first Opus 4
+anthropic/claude-sonnet-4|Anthropic balanced, widely used
+anthropic/claude-haiku-4.5|Anthropic fastest, cheapest
+openai/gpt-5.2|OpenAI flagship, coding+agentic
+openai/gpt-5.1|OpenAI configurable reasoning effort
+openai/gpt-5|OpenAI previous gen reasoning
+openai/gpt-5-mini|OpenAI fast, cost-efficient
+openai/gpt-5-nano|OpenAI fastest, cheapest
+openai/gpt-4.1|OpenAI smartest non-reasoning
+openai/gpt-4.1-mini|OpenAI smaller, faster
+openai/gpt-4.1-nano|OpenAI fastest GPT-4.1
+openai/o3|OpenAI reasoning, complex tasks
+openai/o4-mini|OpenAI fast cost-efficient reasoning
+openai/gpt-4o|OpenAI legacy, still available
+google/gemini-3-pro-preview|Google most intelligent, preview
+google/gemini-3-flash-preview|Google fast+balanced, preview
+google/gemini-2.5-flash|Google best price/perf, stable
+google/gemini-2.5-pro|Google advanced thinking, stable
+google/gemini-2.5-flash-lite|Google ultra-fast, cheapest
+google/gemini-2.0-flash|Google previous gen (deprecates Mar 2026)
+deepseek/deepseek-r1|DeepSeek reasoning, open-weight
+deepseek/deepseek-v3-0324|DeepSeek fast general purpose
+meta-llama/llama-4-maverick|Meta latest MoE
+qwen/qwen3-235b-a22b|Alibaba frontier"
+
+CLI_MODELS_OPENROUTER_ANTHROPIC="anthropic/claude-sonnet-4.5|Latest Sonnet, best coding+agents
+anthropic/claude-opus-4.6|Most powerful, complex challenges
+anthropic/claude-opus-4.5|Strong all-rounder
+anthropic/claude-opus-4.1|Capable reasoning
+anthropic/claude-opus-4|First Opus 4
+anthropic/claude-sonnet-4|Balanced, widely used
+anthropic/claude-haiku-4.5|Fastest, cheapest"
+
+CLI_MODELS_ZHIPU="glm-5|744B MoE (40B active), flagship, agentic engineering
+glm-4.7|355B MoE (32B active), coding+reasoning+agents
+glm-4.7-flashx|Fast+cheap, extended FlashX
+glm-4.7-flash|30B MoE (3B active), free tier
+glm-4.6|357B, 200K context, agentic+coding
+glm-4.5|355B MoE, reasoning+agents
+glm-4.5-x|Extended context GLM-4.5
+glm-4.5-air|106B MoE (12B active), balanced cost/perf
+glm-4.5-airx|Extended context Air
+glm-4.5-flash|Free tier, fast
+glm-4-32b-0414-128k|Open-weight 32B, 128K context
+glm-4.6v|106B vision, 128K ctx, native tool use
+glm-4.6v-flashx|Fast+cheap vision
+glm-4.5v|Vision multimodal
+glm-4.6v-flash|9B vision, free tier"
+
+CLI_MODELS_OPENAI="gpt-5.2|Flagship, coding+agentic
+gpt-5.1|Configurable reasoning effort
+gpt-5|Previous gen intelligent reasoning
+gpt-5-mini|Fast, cost-efficient
+gpt-5-nano|Fastest, cheapest GPT-5
+gpt-4.1|Smartest non-reasoning
+gpt-4.1-mini|Smaller, faster GPT-4.1
+gpt-4.1-nano|Fastest GPT-4.1
+o3|Reasoning, complex tasks
+o3-pro|More compute for better responses
+o4-mini|Fast cost-efficient reasoning
+gpt-4o|Fast, intelligent, flexible
+gpt-4o-mini|Fast, affordable small model"
+
+CLI_MODELS_GEMINI="gemini-3-pro-preview|Most intelligent, preview
+gemini-3-flash-preview|Fast+balanced, preview
+gemini-2.5-flash|Best price/performance, stable
+gemini-2.5-pro|Advanced thinking, stable
+gemini-2.5-flash-lite|Ultra-fast, cheapest
+gemini-2.0-flash|Previous gen (deprecates Mar 2026)"
+
+CLI_MODELS_GROQ="llama-3.3-70b-versatile|Meta 70B, 280 t/s, best quality
+llama-3.1-8b-instant|Meta 8B, 560 t/s, ultra-fast
+openai/gpt-oss-120b|OpenAI open-weight 120B, 500 t/s
+openai/gpt-oss-20b|OpenAI open-weight 20B, 1000 t/s
+meta-llama/llama-4-maverick-17b-128e-instruct|Llama 4 MoE, 600 t/s
+meta-llama/llama-4-scout-17b-16e-instruct|Llama 4 Scout, 750 t/s
+qwen/qwen3-32b|Alibaba 32B, 400 t/s
+moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
+
+CLI_MODELS_OLLAMA="qwen3:4b|2.5GB — best all-round intelligence, dual-mode, 100+ languages
+phi4-mini|3.3GB — best tool calling + agent restraint, stable English
+nanbeige4.1:3b|2.0GB — NEW Feb 2026, rivals 32B models, unified generalist
+gemma3:4b|3.3GB — multimodal (understands images), strong general
+qwen3:1.7b|1.0GB — ultra-light, good basics, 100+ languages
+smollm3:3b|2.0GB — HuggingFace, reasoning + tool calling + multilingual
+lfm2.5:1.2b|0.8GB — fastest inference (1.5s CPU), hybrid architecture
+qwen3:0.6b|0.4GB — 600M params, impossibly good tool calling for size
+deepseek-r1:1.5b|1.0GB — reasoning specialist, math focus
+gemma3:1b|0.8GB — Google tiny, basic tasks
+llama3.2:3b|2.0GB — Meta, solid instruction following
+mistral:7b|4.1GB — classic workhorse (needs 8GB+ RAM)
+qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
+
 _json_escape() {
     local s="$1"
     s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')
     s="${s//\\/\\\\}"
     s="${s//\"/\\\"}"
     printf '%s' "$s"
+}
+
+_shell_escape() { printf '%s' "${1//\'/\'\"\'\"\'}"; }
+
+_extract_atlas_category() {
+    local origin_file="$1"
+    local cat="unknown"
+    if [[ -f "$origin_file" ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" == category:* ]]; then
+                cat="${line#category:}"
+                cat="${cat#"${cat%%[![:space:]]*}"}"
+                cat="${cat//[[:space:]]/}"
+                break
+            fi
+        done < "$origin_file"
+    fi
+    if [[ -z "$cat" ]]; then
+        cat="unknown"
+    fi
+    printf '%s' "$cat"
 }
 
 _load_backup_conf() {
@@ -3537,15 +3671,17 @@ _load_ftp_conf() {
 }
 
 _save_ftp_conf() {
+    local safe_ftp_user
+    safe_ftp_user=$(_shell_escape "${FTP_USER}")
     cat > "$FTP_CONF" << FTPCONF
 # PicoClaw FTP Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FTP_ENABLED="${FTP_ENABLED}"
-FTP_USER="${FTP_USER}"
-FTP_PORT="${FTP_PORT}"
-FTP_PASV_MIN="${FTP_PASV_MIN}"
-FTP_PASV_MAX="${FTP_PASV_MAX}"
-FTP_TLS="${FTP_TLS}"
+FTP_ENABLED='${FTP_ENABLED}'
+FTP_USER='${safe_ftp_user}'
+FTP_PORT='${FTP_PORT}'
+FTP_PASV_MIN='${FTP_PASV_MIN}'
+FTP_PASV_MAX='${FTP_PASV_MAX}'
+FTP_TLS='${FTP_TLS}'
 FTPCONF
 }
 
@@ -3562,15 +3698,19 @@ _load_wa_conf() {
 }
 
 _save_wa_conf() {
+    local safe_wa_bridge_dir safe_wa_auth_dir safe_wa_user_id
+    safe_wa_bridge_dir=$(_shell_escape "${WA_BRIDGE_DIR}")
+    safe_wa_auth_dir=$(_shell_escape "${WA_BRIDGE_AUTH_DIR}")
+    safe_wa_user_id=$(_shell_escape "${WA_USER_ID}")
     cat > "$WA_CONF" << WACONF
 # PicoClaw WhatsApp Bridge Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-WA_ENABLED="${WA_ENABLED}"
-WA_BRIDGE_PORT="${WA_BRIDGE_PORT}"
-WA_BRIDGE_DIR="${WA_BRIDGE_DIR}"
-WA_BRIDGE_AUTH_DIR="${WA_BRIDGE_AUTH_DIR}"
-WA_BRIDGE_SERVICE="${WA_BRIDGE_SERVICE}"
-WA_USER_ID="${WA_USER_ID}"
+WA_ENABLED='${WA_ENABLED}'
+WA_BRIDGE_PORT='${WA_BRIDGE_PORT}'
+WA_BRIDGE_DIR='${safe_wa_bridge_dir}'
+WA_BRIDGE_AUTH_DIR='${safe_wa_auth_dir}'
+WA_BRIDGE_SERVICE='${WA_BRIDGE_SERVICE}'
+WA_USER_ID='${safe_wa_user_id}'
 WACONF
 }
 
@@ -3578,7 +3718,7 @@ _load_ollama_conf() {
     OLLAMA_ENABLED="false"
     OLLAMA_MODEL=""
     OLLAMA_CUSTOM_MODEL=""
-    OLLAMA_NUM_CTX="4096"
+    OLLAMA_NUM_CTX="8192"
     OLLAMA_HOST="127.0.0.1"
     OLLAMA_PORT="11434"
     if [[ -f "$OLLAMA_CONF" ]]; then
@@ -3587,83 +3727,87 @@ _load_ollama_conf() {
 }
 
 _save_ollama_conf() {
+    local safe_ollama_model safe_ollama_custom safe_ollama_host
+    safe_ollama_model=$(_shell_escape "${OLLAMA_MODEL}")
+    safe_ollama_custom=$(_shell_escape "${OLLAMA_CUSTOM_MODEL}")
+    safe_ollama_host=$(_shell_escape "${OLLAMA_HOST}")
     cat > "$OLLAMA_CONF" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-OLLAMA_ENABLED="${OLLAMA_ENABLED}"
-OLLAMA_MODEL="${OLLAMA_MODEL}"
-OLLAMA_CUSTOM_MODEL="${OLLAMA_CUSTOM_MODEL}"
-OLLAMA_NUM_CTX="${OLLAMA_NUM_CTX}"
-OLLAMA_HOST="${OLLAMA_HOST}"
-OLLAMA_PORT="${OLLAMA_PORT}"
+OLLAMA_ENABLED='${OLLAMA_ENABLED}'
+OLLAMA_MODEL='${safe_ollama_model}'
+OLLAMA_CUSTOM_MODEL='${safe_ollama_custom}'
+OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
+OLLAMA_HOST='${safe_ollama_host}'
+OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
 }
 
 cmd_help() {
     "$BIN" 2>&1 || true
     echo ""
-    echo -e "${B}Service commands:${N}"
-    echo -e "  ${C}picoclaw start${N}                     start gateway"
-    echo -e "  ${C}picoclaw stop${N}                      stop gateway"
-    echo -e "  ${C}picoclaw restart${N}                   restart gateway"
-    echo -e "  ${C}picoclaw logs${N}                      follow live logs (ctrl+c)"
-    echo -e "  ${C}picoclaw logs -n 50${N}                last 50 lines"
-    echo -e "  ${C}picoclaw status${N}                    full status dashboard"
+    printf "${B}Service commands:${N}\n"
+    printf "  ${C}picoclaw start${N}                     start gateway\n"
+    printf "  ${C}picoclaw stop${N}                      stop gateway\n"
+    printf "  ${C}picoclaw restart${N}                   restart gateway\n"
+    printf "  ${C}picoclaw logs${N}                      follow live logs (ctrl+c)\n"
+    printf "  ${C}picoclaw logs -n 50${N}                last 50 lines\n"
+    printf "  ${C}picoclaw status${N}                    full status dashboard\n"
     echo ""
-    echo -e "${B}Config commands:${N}"
-    echo -e "  ${C}picoclaw edit${N}                      edit config.json"
-    echo -e "  ${C}picoclaw model${N}                     switch model interactively"
-    echo -e "  ${C}picoclaw telegram${N}                  manage Telegram settings & users"
+    printf "${B}Config commands:${N}\n"
+    printf "  ${C}picoclaw edit${N}                      edit config.json\n"
+    printf "  ${C}picoclaw model${N}                     switch model interactively\n"
+    printf "  ${C}picoclaw telegram${N}                  manage Telegram settings & users\n"
     echo ""
-    echo -e "${B}WhatsApp commands:${N}"
-    echo -e "  ${C}picoclaw whatsapp${N}                  WhatsApp management menu"
-    echo -e "  ${C}picoclaw whatsapp login${N}            scan QR code to link account"
-    echo -e "  ${C}picoclaw whatsapp logout${N}           unlink account (removes session)"
-    echo -e "  ${C}picoclaw whatsapp status${N}           show bridge status"
-    echo -e "  ${C}picoclaw whatsapp start${N}            start bridge service"
-    echo -e "  ${C}picoclaw whatsapp stop${N}             stop bridge service"
-    echo -e "  ${C}picoclaw whatsapp restart${N}          restart bridge service"
-    echo -e "  ${C}picoclaw whatsapp logs${N}             follow bridge logs"
-    echo -e "  ${C}picoclaw whatsapp enable${N}           enable WhatsApp in config"
-    echo -e "  ${C}picoclaw whatsapp disable${N}          disable WhatsApp in config"
+    printf "${B}WhatsApp commands:${N}\n"
+    printf "  ${C}picoclaw whatsapp${N}                  WhatsApp management menu\n"
+    printf "  ${C}picoclaw whatsapp login${N}            scan QR code to link account\n"
+    printf "  ${C}picoclaw whatsapp logout${N}           unlink account (removes session)\n"
+    printf "  ${C}picoclaw whatsapp status${N}           show bridge status\n"
+    printf "  ${C}picoclaw whatsapp start${N}            start bridge service\n"
+    printf "  ${C}picoclaw whatsapp stop${N}             stop bridge service\n"
+    printf "  ${C}picoclaw whatsapp restart${N}          restart bridge service\n"
+    printf "  ${C}picoclaw whatsapp logs${N}             follow bridge logs\n"
+    printf "  ${C}picoclaw whatsapp enable${N}           enable WhatsApp in config\n"
+    printf "  ${C}picoclaw whatsapp disable${N}          disable WhatsApp in config\n"
     echo ""
-    echo -e "${B}Ollama commands:${N}"
-    echo -e "  ${C}picoclaw ollama${N}                    Ollama management menu"
-    echo -e "  ${C}picoclaw ollama status${N}             show Ollama status"
-    echo -e "  ${C}picoclaw ollama start${N}              start Ollama service"
-    echo -e "  ${C}picoclaw ollama stop${N}               stop Ollama service"
-    echo -e "  ${C}picoclaw ollama restart${N}            restart Ollama service"
-    echo -e "  ${C}picoclaw ollama logs${N}               follow Ollama logs"
-    echo -e "  ${C}picoclaw ollama model${N}              switch model interactively"
-    echo -e "  ${C}picoclaw ollama list${N}               list installed models"
-    echo -e "  ${C}picoclaw ollama pull <model>${N}       pull a new model"
-    echo -e "  ${C}picoclaw ollama remove <model>${N}     remove a model"
-    echo -e "  ${C}picoclaw ollama ctx <number>${N}       change context window size"
+    printf "${B}Ollama commands:${N}\n"
+    printf "  ${C}picoclaw ollama${N}                    Ollama management menu\n"
+    printf "  ${C}picoclaw ollama status${N}             show Ollama status\n"
+    printf "  ${C}picoclaw ollama start${N}              start Ollama service\n"
+    printf "  ${C}picoclaw ollama stop${N}               stop Ollama service\n"
+    printf "  ${C}picoclaw ollama restart${N}            restart Ollama service\n"
+    printf "  ${C}picoclaw ollama logs${N}               follow Ollama logs\n"
+    printf "  ${C}picoclaw ollama model${N}              switch model interactively\n"
+    printf "  ${C}picoclaw ollama list${N}               list installed models\n"
+    printf "  ${C}picoclaw ollama pull <model>${N}       pull a new model\n"
+    printf "  ${C}picoclaw ollama remove <model>${N}     remove a model\n"
+    printf "  ${C}picoclaw ollama ctx <number>${N}       change context window size\n"
     echo ""
-    echo -e "${B}Backup commands:${N}"
-    echo -e "  ${C}picoclaw backup${N}                    create manual backup now"
-    echo -e "  ${C}picoclaw backup --auto${N}             auto-backup (called by cron)"
-    echo -e "  ${C}picoclaw backup list${N}               list all backups"
-    echo -e "  ${C}picoclaw backup settings${N}           view/change backup settings"
+    printf "${B}Backup commands:${N}\n"
+    printf "  ${C}picoclaw backup${N}                    create manual backup now\n"
+    printf "  ${C}picoclaw backup --auto${N}             auto-backup (called by cron)\n"
+    printf "  ${C}picoclaw backup list${N}               list all backups\n"
+    printf "  ${C}picoclaw backup settings${N}           view/change backup settings\n"
     echo ""
-    echo -e "${B}Atlas commands:${N}"
-    echo -e "  ${C}picoclaw atlas${N}                     show Atlas skills status"
-    echo -e "  ${C}picoclaw atlas list${N}                list all installed Atlas skills"
-    echo -e "  ${C}picoclaw atlas update${N}              update all skills from repository"
-    echo -e "  ${C}picoclaw atlas info <name>${N}         show details for a specific skill"
+    printf "${B}Atlas commands:${N}\n"
+    printf "  ${C}picoclaw atlas${N}                     show Atlas skills status\n"
+    printf "  ${C}picoclaw atlas list${N}                list all installed Atlas skills\n"
+    printf "  ${C}picoclaw atlas update${N}              update all skills from repository\n"
+    printf "  ${C}picoclaw atlas info <name>${N}         show details for a specific skill\n"
     echo ""
-    echo -e "${B}FTP commands:${N}"
-    echo -e "  ${C}picoclaw ftp${N}                       FTP server status & management"
-    echo -e "  ${C}picoclaw ftp status${N}                show FTP server status"
-    echo -e "  ${C}picoclaw ftp start${N}                 start FTP server"
-    echo -e "  ${C}picoclaw ftp stop${N}                  stop FTP server"
-    echo -e "  ${C}picoclaw ftp restart${N}               restart FTP server"
-    echo -e "  ${C}picoclaw ftp password${N}              change FTP password"
-    echo -e "  ${C}picoclaw ftp port${N}                  change FTP port"
-    echo -e "  ${C}picoclaw ftp tls${N}                   toggle TLS on/off"
-    echo -e "  ${C}picoclaw ftp logs${N}                  view FTP logs"
-    echo -e "  ${C}picoclaw ftp disable${N}               disable FTP server"
-    echo -e "  ${C}picoclaw ftp enable${N}                enable FTP server"
+    printf "${B}FTP commands:${N}\n"
+    printf "  ${C}picoclaw ftp${N}                       FTP server status & management\n"
+    printf "  ${C}picoclaw ftp status${N}                show FTP server status\n"
+    printf "  ${C}picoclaw ftp start${N}                 start FTP server\n"
+    printf "  ${C}picoclaw ftp stop${N}                  stop FTP server\n"
+    printf "  ${C}picoclaw ftp restart${N}               restart FTP server\n"
+    printf "  ${C}picoclaw ftp password${N}              change FTP password\n"
+    printf "  ${C}picoclaw ftp port${N}                  change FTP port\n"
+    printf "  ${C}picoclaw ftp tls${N}                   toggle TLS on/off\n"
+    printf "  ${C}picoclaw ftp logs${N}                  view FTP logs\n"
+    printf "  ${C}picoclaw ftp disable${N}               disable FTP server\n"
+    printf "  ${C}picoclaw ftp enable${N}                enable FTP server\n"
     echo ""
 }
 
@@ -3672,13 +3816,13 @@ cmd_start() {
     _load_ollama_conf
     if [[ "$OLLAMA_ENABLED" == "true" ]]; then
         if ! systemctl is-active --quiet "$OLLAMA_SVC" 2>/dev/null; then
-            echo -e "  ${M}🦞${N} Starting Ollama..."
+            printf "  ${M}🦞${N} Starting Ollama...\n"
             systemctl start "$OLLAMA_SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$OLLAMA_SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} Ollama running"
+                printf "  ${G}✔${N} Ollama running\n"
             else
-                echo -e "  ${Y}⚠${N} Ollama failed to start — check: picoclaw ollama logs"
+                printf "  ${Y}⚠${N} Ollama failed to start — check: picoclaw ollama logs\n"
             fi
         fi
     fi
@@ -3688,33 +3832,33 @@ cmd_start() {
     if [[ "$WA_ENABLED" == "true" ]]; then
         if [[ -f "/etc/systemd/system/${WA_BRIDGE_SVC}.service" ]]; then
             if ! systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
-                echo -e "  ${M}🦞${N} Starting WhatsApp bridge..."
+                printf "  ${M}🦞${N} Starting WhatsApp bridge...\n"
                 systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
                 sleep 2
                 if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
-                    echo -e "  ${G}✔${N} WhatsApp bridge running"
+                    printf "  ${G}✔${N} WhatsApp bridge running\n"
                 else
-                    echo -e "  ${Y}⚠${N} WhatsApp bridge failed to start — check: picoclaw whatsapp logs"
+                    printf "  ${Y}⚠${N} WhatsApp bridge failed to start — check: picoclaw whatsapp logs\n"
                 fi
             fi
         fi
     fi
 
-    echo -e "  ${M}🦞${N} Starting PicoClaw gateway..."
+    printf "  ${M}🦞${N} Starting PicoClaw gateway...\n"
     systemctl start "$SVC" 2>/dev/null
     sleep 1
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-        echo -e "  ${G}✔${N} Gateway running (PID $(systemctl show "$SVC" --property=MainPID --value 2>/dev/null))"
+        printf "  ${G}✔${N} Gateway running (PID $(systemctl show "$SVC" --property=MainPID --value 2>/dev/null))\n"
     else
-        echo -e "  ${R}✘${N} Failed to start — check: picoclaw logs"
+        printf "  ${R}✘${N} Failed to start — check: picoclaw logs\n"
         exit 1
     fi
 }
 
 cmd_stop() {
-    echo -e "  ${M}🦞${N} Stopping PicoClaw gateway..."
+    printf "  ${M}🦞${N} Stopping PicoClaw gateway...\n"
     systemctl stop "$SVC" 2>/dev/null
-    echo -e "  ${G}✔${N} Gateway stopped"
+    printf "  ${G}✔${N} Gateway stopped\n"
 }
 
 cmd_restart() {
@@ -3722,13 +3866,13 @@ cmd_restart() {
     _load_ollama_conf
     if [[ "$OLLAMA_ENABLED" == "true" ]]; then
         if ! systemctl is-active --quiet "$OLLAMA_SVC" 2>/dev/null; then
-            echo -e "  ${M}🦞${N} Starting Ollama..."
+            printf "  ${M}🦞${N} Starting Ollama...\n"
             systemctl start "$OLLAMA_SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$OLLAMA_SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} Ollama running"
+                printf "  ${G}✔${N} Ollama running\n"
             else
-                echo -e "  ${Y}⚠${N} Ollama failed — check: picoclaw ollama logs"
+                printf "  ${Y}⚠${N} Ollama failed — check: picoclaw ollama logs\n"
             fi
         fi
     fi
@@ -3737,24 +3881,24 @@ cmd_restart() {
     _load_wa_conf
     if [[ "$WA_ENABLED" == "true" ]]; then
         if [[ -f "/etc/systemd/system/${WA_BRIDGE_SVC}.service" ]]; then
-            echo -e "  ${M}🦞${N} Restarting WhatsApp bridge..."
+            printf "  ${M}🦞${N} Restarting WhatsApp bridge...\n"
             systemctl restart "$WA_BRIDGE_SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} WhatsApp bridge running"
+                printf "  ${G}✔${N} WhatsApp bridge running\n"
             else
-                echo -e "  ${Y}⚠${N} WhatsApp bridge failed — check: picoclaw whatsapp logs"
+                printf "  ${Y}⚠${N} WhatsApp bridge failed — check: picoclaw whatsapp logs\n"
             fi
         fi
     fi
 
-    echo -e "  ${M}🦞${N} Restarting PicoClaw gateway..."
+    printf "  ${M}🦞${N} Restarting PicoClaw gateway...\n"
     systemctl restart "$SVC" 2>/dev/null
     sleep 2
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-        echo -e "  ${G}✔${N} Gateway running (PID $(systemctl show "$SVC" --property=MainPID --value 2>/dev/null))"
+        printf "  ${G}✔${N} Gateway running (PID $(systemctl show "$SVC" --property=MainPID --value 2>/dev/null))\n"
     else
-        echo -e "  ${R}✘${N} Failed to restart — check: picoclaw logs"
+        printf "  ${R}✘${N} Failed to restart — check: picoclaw logs\n"
         exit 1
     fi
 }
@@ -3774,45 +3918,45 @@ cmd_edit() {
     elif command -v vi &>/dev/null; then
         exec vi "$CFG"
     else
-        echo -e "  ${R}✘${N} No editor found. Edit manually: ${CFG}"
+        printf "  ${R}✘${N} No editor found. Edit manually: ${CFG}\n"
         exit 1
     fi
 }
 
 cmd_status() {
     echo ""
-    echo -e "${B}🦞 PicoClaw Status${N}"
+    printf "${B}🦞 PicoClaw Status${N}\n"
     echo ""
 
     if [[ -x "$BIN" ]]; then
         local ver=""
         ver=$("$BIN" version 2>/dev/null) || ver="unknown"
-        echo -e "  Binary:    ${G}●${N} ${BIN} (${ver}, $(du -h "$BIN" | awk '{print $1}'))"
+        printf "  Binary:    ${G}●${N} %s (%s, %s)\n" "$BIN" "$ver" "$(du -h "$BIN" | awk '{print $1}')"
     else
-        echo -e "  Binary:    ${R}● missing${N}"
+        printf "  Binary:    ${R}● missing${N}\n"
     fi
 
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
         local since="" pid=""
         since=$(systemctl show "$SVC" --property=ActiveEnterTimestamp --value 2>/dev/null) || true
         pid=$(systemctl show "$SVC" --property=MainPID --value 2>/dev/null) || true
-        echo -e "  Gateway:   ${G}● running${N}  PID ${pid}  since ${since}"
+        printf "  Gateway:   ${G}● running${N}  PID %s  since %s\n" "$pid" "$since"
     elif systemctl is-enabled --quiet "$SVC" 2>/dev/null; then
-        echo -e "  Gateway:   ${R}● stopped${N} (enabled — run: picoclaw start)"
+        printf "  Gateway:   ${R}● stopped${N} (enabled — run: picoclaw start)\n"
     else
-        echo -e "  Gateway:   ${D}○ not configured${N}"
+        printf "  Gateway:   ${D}○ not configured${N}\n"
     fi
 
     if systemctl is-active --quiet picoclaw-watchdog.timer 2>/dev/null; then
-        echo -e "  Watchdog:  ${G}● active${N} (every 60s)"
+        printf "  Watchdog:  ${G}● active${N} (every 60s)\n"
     else
-        echo -e "  Watchdog:  ${D}○ inactive${N}"
+        printf "  Watchdog:  ${D}○ inactive${N}\n"
     fi
 
     if [[ -f /etc/cron.d/picoclaw-boot ]]; then
-        echo -e "  Cron:      ${G}● @reboot fallback${N}"
+        printf "  Cron:      ${G}● @reboot fallback${N}\n"
     else
-        echo -e "  Cron:      ${D}○ not configured${N}"
+        printf "  Cron:      ${D}○ not configured${N}\n"
     fi
 
     if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then
@@ -3820,9 +3964,9 @@ cmd_status() {
         cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null) || cc="?"
         local swap_val=""
         swap_val=$(sysctl -n vm.swappiness 2>/dev/null) || swap_val="?"
-        echo -e "  Perf:      ${G}● optimized${N} (BBR=${cc}, swappiness=${swap_val})"
+        printf "  Perf:      ${G}● optimized${N} (BBR=%s, swappiness=%s)\n" "$cc" "$swap_val"
     else
-        echo -e "  Perf:      ${D}○ not optimized${N}"
+        printf "  Perf:      ${D}○ not optimized${N}\n"
     fi
 
     # ── Ollama status ──
@@ -3836,15 +3980,15 @@ cmd_status() {
             if [[ -n "$ollama_pid" && "$ollama_pid" != "0" ]]; then
                 ollama_ram=$(ps -o rss= -p "$ollama_pid" 2>/dev/null | awk '{printf "%.0fMB", $1/1024}') || ollama_ram="?"
             fi
-            echo -e "  Ollama:    ${G}● running${N} PID ${ollama_pid} (${ollama_model_display}, ${ollama_ram} RAM)"
+            printf "  Ollama:    ${G}● running${N} PID %s (%s, %s RAM)\n" "$ollama_pid" "$ollama_model_display" "$ollama_ram"
         else
-            echo -e "  Ollama:    ${R}● stopped${N} (enabled — run: picoclaw ollama start)"
+            printf "  Ollama:    ${R}● stopped${N} (enabled — run: picoclaw ollama start)\n"
         fi
     else
         if command -v ollama &>/dev/null; then
-            echo -e "  Ollama:    ${D}○ disabled${N} (installed, run: picoclaw ollama)"
+            printf "  Ollama:    ${D}○ disabled${N} (installed, run: picoclaw ollama)\n"
         else
-            echo -e "  Ollama:    ${D}○ not installed${N}"
+            printf "  Ollama:    ${D}○ not installed${N}\n"
         fi
     fi
 
@@ -3858,19 +4002,19 @@ cmd_status() {
             if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
                 wa_linked="linked"
             fi
-            echo -e "  WhatsApp:  ${G}● running${N} PID ${wa_pid} (port ${WA_BRIDGE_PORT}, ${wa_linked})"
+            printf "  WhatsApp:  ${G}● running${N} PID %s (port %s, %s)\n" "$wa_pid" "$WA_BRIDGE_PORT" "$wa_linked"
         else
             local wa_linked="unlinked"
             if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
                 wa_linked="linked"
             fi
-            echo -e "  WhatsApp:  ${R}● stopped${N} (${wa_linked} — run: picoclaw whatsapp start)"
+            printf "  WhatsApp:  ${R}● stopped${N} (%s — run: picoclaw whatsapp start)\n" "$wa_linked"
         fi
     else
         if [[ -d "/opt/picoclaw-whatsapp-bridge" ]]; then
-            echo -e "  WhatsApp:  ${D}○ disabled${N} (installed, run: picoclaw whatsapp enable)"
+            printf "  WhatsApp:  ${D}○ disabled${N} (installed, run: picoclaw whatsapp enable)\n"
         else
-            echo -e "  WhatsApp:  ${D}○ not installed${N}"
+            printf "  WhatsApp:  ${D}○ not installed${N}\n"
         fi
     fi
 
@@ -3878,15 +4022,15 @@ cmd_status() {
     _load_ftp_conf
     if [[ "$FTP_ENABLED" == "true" ]]; then
         if systemctl is-active --quiet vsftpd 2>/dev/null; then
-            echo -e "  FTP:       ${G}● running${N} (${FTP_USER}@:${FTP_PORT}, TLS=${FTP_TLS})"
+            printf "  FTP:       ${G}● running${N} (%s@:%s, TLS=%s)\n" "$FTP_USER" "$FTP_PORT" "$FTP_TLS"
         else
-            echo -e "  FTP:       ${R}● stopped${N} (enabled — run: picoclaw ftp start)"
+            printf "  FTP:       ${R}● stopped${N} (enabled — run: picoclaw ftp start)\n"
         fi
     else
         if command -v vsftpd &>/dev/null; then
-            echo -e "  FTP:       ${D}○ disabled${N} (installed, run: picoclaw ftp enable)"
+            printf "  FTP:       ${D}○ disabled${N} (installed, run: picoclaw ftp enable)\n"
         else
-            echo -e "  FTP:       ${D}○ not installed${N}"
+            printf "  FTP:       ${D}○ not installed${N}\n"
         fi
     fi
 
@@ -3904,20 +4048,20 @@ cmd_status() {
         if [[ -f "$ATLAS_META" ]] && command -v jq &>/dev/null; then
             atlas_ts=$(jq -r '.last_updated // empty' "$ATLAS_META" 2>/dev/null) || true
         fi
-        echo -e "  Atlas:     ${G}● ${atlas_count} skill(s)${N}${D}$(if [[ -n "$atlas_ts" ]]; then echo " (updated ${atlas_ts})"; fi)${N}"
+        printf "  Atlas:     ${G}● ${atlas_count} skill(s)${N}${D}$(if [[ -n "$atlas_ts" ]]; then echo " (updated ${atlas_ts})"; fi)${N}\n"
     else
-        echo -e "  Atlas:     ${D}○ no skills installed${N}"
+        printf "  Atlas:     ${D}○ no skills installed${N}\n"
     fi
 
     _load_backup_conf
     local bk_count=0
     bk_count=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l) || true
     if [[ -f /etc/cron.d/picoclaw-autobackup ]]; then
-        echo -e "  Backup:    ${G}● auto${N} every ${BACKUP_INTERVAL_DAYS}d, ${bk_count}/${BACKUP_MAX_KEEP} snapshots"
+        printf "  Backup:    ${G}● auto${N} every %sd, %s/%s snapshots\n" "$BACKUP_INTERVAL_DAYS" "$bk_count" "$BACKUP_MAX_KEEP"
     elif [[ $bk_count -gt 0 ]]; then
-        echo -e "  Backup:    ${G}● manual${N} ${bk_count} snapshot(s) in ${BACKUP_DIR}"
+        printf "  Backup:    ${G}● manual${N} %s snapshot(s) in %s\n" "$bk_count" "$BACKUP_DIR"
     else
-        echo -e "  Backup:    ${D}○ none${N}"
+        printf "  Backup:    ${D}○ none${N}\n"
     fi
 
     echo ""
@@ -3950,15 +4094,14 @@ cmd_status() {
         elif [[ -n "$vl_key" || -n "$vl_base" ]]; then prov="vllm"
         fi
 
-        echo -e "  Provider:  ${B}${prov}${N}"
-        echo -e "  Model:     ${C}${m}${N}"
+        printf "  Provider:  ${B}%s${N}\n" "$prov"
+        printf "  Model:     ${C}%s${N}\n" "$m"
         echo ""
 
         for ch in telegram discord whatsapp feishu maixcam; do
             local en=""
             en=$(jq -r ".channels.${ch}.enabled // false" "$CFG" 2>/dev/null) || true
-            local label=""
-            label=$(echo "$ch" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+            local label="${ch^}"
             if [[ "$en" == "true" ]]; then
                 local af=""
                 af=$(jq -r ".channels.${ch}.allow_from | if length > 0 then join(\", \") else \"any\" end" "$CFG" 2>/dev/null) || af="?"
@@ -3973,49 +4116,49 @@ cmd_status() {
         local bk=""
         bk=$(jq -r '.tools.web.search.api_key // empty' "$CFG" 2>/dev/null) || true
         if [[ -n "$bk" ]]; then
-            echo -e "  Search:    ${G}● brave${N}"
+            printf "  Search:    ${G}● brave${N}\n"
         else
-            echo -e "  Search:    ${D}○ off${N}"
+            printf "  Search:    ${D}○ off${N}\n"
         fi
 
         if [[ -n "$gr_key" ]]; then
-            echo -e "  Voice:     ${G}● groq whisper${N}"
+            printf "  Voice:     ${G}● groq whisper${N}\n"
         else
-            echo -e "  Voice:     ${D}○ off${N}"
+            printf "  Voice:     ${D}○ off${N}\n"
         fi
     else
-        echo -e "  ${D}Config: ${CFG} (not found or jq missing)${N}"
+        printf "  ${D}Config: ${CFG} (not found or jq missing)${N}\n"
     fi
 
     echo ""
-    echo -e "${B}System${N}"
-    echo -e "  RAM:   $(free -h | awk '/^Mem:/{printf "%s / %s", $3, $2}')"
+    printf "${B}System${N}\n"
+    printf "  RAM:   $(free -h | awk '/^Mem:/{printf "%s / %s", $3, $2}')\n"
     if swapon --show=NAME,TYPE,SIZE 2>/dev/null | grep -q "zram"; then
         local zram_info=""
         zram_info=$(swapon --show=NAME,SIZE 2>/dev/null | grep zram | awk '{print $2}') || true
-        echo -e "  zram:  ${G}● active${N} (${zram_info} compressed swap)"
+        printf "  zram:  ${G}● active${N} (${zram_info} compressed swap)\n"
     fi
-    echo -e "  Disk:  $(df -h / | awk 'NR==2{printf "%s / %s (%s used)", $3, $2, $5}')"
-    echo -e "  Up:    $(uptime -p 2>/dev/null || uptime)"
+    printf "  Disk:  $(df -h / | awk 'NR==2{printf "%s / %s (%s used)", $3, $2, $5}')\n"
+    printf "  Up:    $(uptime -p 2>/dev/null || uptime)\n"
     echo ""
 }
 
 cmd_model() {
     if [[ ! -f "$CFG" ]]; then
-        echo -e "  ${R}✘ Config not found: ${CFG}${N}"
-        echo -e "  ${D}Run the installer first.${N}"
+        printf "  ${R}✘ Config not found: ${CFG}${N}\n"
+        printf "  ${D}Run the installer first.${N}\n"
         exit 1
     fi
 
     if ! command -v jq &>/dev/null; then
-        echo -e "  ${R}✘ jq is required but not installed${N}"
+        printf "  ${R}✘ jq is required but not installed${N}\n"
         exit 1
     fi
 
     local CURRENT_MODEL=""
     CURRENT_MODEL=$(jq -r '.agents.defaults.model // empty' "$CFG" 2>/dev/null)
     if [[ -z "$CURRENT_MODEL" ]]; then
-        echo -e "  ${R}✘ No model found in config${N}"
+        printf "  ${R}✘ No model found in config${N}\n"
         exit 1
     fi
 
@@ -4052,8 +4195,8 @@ cmd_model() {
 
     if [[ "$PROVIDER" == "ollama" ]]; then
         echo ""
-        echo -e "  ${Y}⚠${N} Provider is Ollama (local). Use ${C}picoclaw ollama model${N} to switch models."
-        echo -e "  ${D}The Ollama model switcher handles downloading and Modelfile creation.${N}"
+        printf "  ${Y}⚠${N} Provider is Ollama (local). Use ${C}picoclaw ollama model${N} to switch models.\n"
+        printf "  ${D}The Ollama model switcher handles downloading and Modelfile creation.${N}\n"
         echo ""
         return 0
     fi
@@ -4072,110 +4215,27 @@ cmd_model() {
 
     local MODEL_DATA=""
     case "$PROVIDER" in
-        openrouter)
-            MODEL_DATA="anthropic/claude-sonnet-4.5|Anthropic latest Sonnet, best coding+agents
-anthropic/claude-opus-4.6|Anthropic most powerful, complex challenges
-anthropic/claude-opus-4.5|Anthropic strong all-rounder
-anthropic/claude-opus-4.1|Anthropic capable reasoning
-anthropic/claude-opus-4|Anthropic first Opus 4
-anthropic/claude-sonnet-4|Anthropic balanced, widely used
-anthropic/claude-haiku-4.5|Anthropic fastest, cheapest
-openai/gpt-5.2|OpenAI flagship, coding+agentic
-openai/gpt-5.1|OpenAI configurable reasoning effort
-openai/gpt-5|OpenAI previous gen reasoning
-openai/gpt-5-mini|OpenAI fast, cost-efficient
-openai/gpt-5-nano|OpenAI fastest, cheapest
-openai/gpt-4.1|OpenAI smartest non-reasoning
-openai/gpt-4.1-mini|OpenAI smaller, faster
-openai/gpt-4.1-nano|OpenAI fastest GPT-4.1
-openai/o3|OpenAI reasoning, complex tasks
-openai/o4-mini|OpenAI fast cost-efficient reasoning
-openai/gpt-4o|OpenAI legacy, still available
-google/gemini-3-pro-preview|Google most intelligent, preview
-google/gemini-3-flash-preview|Google fast+balanced, preview
-google/gemini-2.5-flash|Google best price/perf, stable
-google/gemini-2.5-pro|Google advanced thinking, stable
-google/gemini-2.5-flash-lite|Google ultra-fast, cheapest
-google/gemini-2.0-flash|Google previous gen (deprecates Mar 2026)
-deepseek/deepseek-r1|DeepSeek reasoning, open-weight
-deepseek/deepseek-v3-0324|DeepSeek fast general purpose
-meta-llama/llama-4-maverick|Meta latest MoE
-qwen/qwen3-235b-a22b|Alibaba frontier"
-            ;;
-        openrouter-anthropic)
-            MODEL_DATA="anthropic/claude-sonnet-4.5|Latest Sonnet, best coding+agents
-anthropic/claude-opus-4.6|Most powerful, complex challenges
-anthropic/claude-opus-4.5|Strong all-rounder
-anthropic/claude-opus-4.1|Capable reasoning
-anthropic/claude-opus-4|First Opus 4
-anthropic/claude-sonnet-4|Balanced, widely used
-anthropic/claude-haiku-4.5|Fastest, cheapest"
-            ;;
-        zhipu)
-            MODEL_DATA="glm-5|744B MoE (40B active), flagship, agentic engineering
-glm-4.7|355B MoE (32B active), coding+reasoning+agents
-glm-4.7-flashx|Fast+cheap, extended FlashX
-glm-4.7-flash|30B MoE (3B active), free tier
-glm-4.6|357B, 200K context, agentic+coding
-glm-4.5|355B MoE, reasoning+agents
-glm-4.5-x|Extended context GLM-4.5
-glm-4.5-air|106B MoE (12B active), balanced cost/perf
-glm-4.5-airx|Extended context Air
-glm-4.5-flash|Free tier, fast
-glm-4-32b-0414-128k|Open-weight 32B, 128K context
-glm-4.6v|106B vision, 128K ctx, native tool use
-glm-4.6v-flashx|Fast+cheap vision
-glm-4.5v|Vision multimodal
-glm-4.6v-flash|9B vision, free tier"
-            ;;
-        openai)
-            MODEL_DATA="gpt-5.2|Flagship, coding+agentic
-gpt-5.1|Configurable reasoning effort
-gpt-5|Previous gen intelligent reasoning
-gpt-5-mini|Fast, cost-efficient
-gpt-5-nano|Fastest, cheapest GPT-5
-gpt-4.1|Smartest non-reasoning
-gpt-4.1-mini|Smaller, faster GPT-4.1
-gpt-4.1-nano|Fastest GPT-4.1
-o3|Reasoning, complex tasks
-o3-pro|More compute for better responses
-o4-mini|Fast cost-efficient reasoning
-gpt-4o|Fast, intelligent, flexible
-gpt-4o-mini|Fast, affordable small model"
-            ;;
-        gemini)
-            MODEL_DATA="gemini-3-pro-preview|Most intelligent, preview
-gemini-3-flash-preview|Fast+balanced, preview
-gemini-2.5-flash|Best price/performance, stable
-gemini-2.5-pro|Advanced thinking, stable
-gemini-2.5-flash-lite|Ultra-fast, cheapest
-gemini-2.0-flash|Previous gen (deprecates Mar 2026)"
-            ;;
-        groq)
-            MODEL_DATA="llama-3.3-70b-versatile|Meta 70B, 280 t/s, best quality
-llama-3.1-8b-instant|Meta 8B, 560 t/s, ultra-fast
-openai/gpt-oss-120b|OpenAI open-weight 120B, 500 t/s
-openai/gpt-oss-20b|OpenAI open-weight 20B, 1000 t/s
-meta-llama/llama-4-maverick-17b-128e-instruct|Llama 4 MoE, 600 t/s
-meta-llama/llama-4-scout-17b-16e-instruct|Llama 4 Scout, 750 t/s
-qwen/qwen3-32b|Alibaba 32B, 400 t/s
-moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
-            ;;
-        vllm) MODEL_DATA="" ;;
-        *)    MODEL_DATA="" ;;
+        openrouter)           MODEL_DATA="$CLI_MODELS_OPENROUTER" ;;
+        openrouter-anthropic) MODEL_DATA="$CLI_MODELS_OPENROUTER_ANTHROPIC" ;;
+        zhipu)                MODEL_DATA="$CLI_MODELS_ZHIPU" ;;
+        openai)               MODEL_DATA="$CLI_MODELS_OPENAI" ;;
+        gemini)               MODEL_DATA="$CLI_MODELS_GEMINI" ;;
+        groq)                 MODEL_DATA="$CLI_MODELS_GROQ" ;;
+        vllm)                 MODEL_DATA="" ;;
+        *)                    MODEL_DATA="" ;;
     esac
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Model Switcher${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Model Switcher${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
-    echo -e "  Provider:       ${B}${pname}${N}"
-    echo -e "  Current model:  ${C}${CURRENT_MODEL}${N}"
+    printf "  Provider:       ${B}${pname}${N}\n"
+    printf "  Current model:  ${C}${CURRENT_MODEL}${N}\n"
     echo ""
 
     if [[ "$PROVIDER" == "unknown" ]]; then
-        echo -e "  ${R}✘ Could not detect provider from config${N}"
-        echo -e "  ${D}Edit manually: picoclaw edit${N}"
+        printf "  ${R}✘ Could not detect provider from config${N}\n"
+        printf "  ${D}Edit manually: picoclaw edit${N}\n"
         exit 1
     fi
 
@@ -4183,20 +4243,20 @@ moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
 
     if [[ -z "$MODEL_DATA" ]]; then
         if [[ "$PROVIDER" == "vllm" ]]; then
-            echo -e "  ${D}vLLM has no fixed model list — enter model ID manually.${N}"
+            printf "  ${D}vLLM has no fixed model list — enter model ID manually.${N}\n"
             echo ""
-            echo -ne "  ${C}➜${N} Enter new model ID: "
+            printf "  ${C}➜${N} Enter new model ID: "
             read -r NEW_MODEL
             if [[ -z "$NEW_MODEL" ]]; then
-                echo -e "  ${Y}⚠ Cancelled — no model entered${N}"
+                printf "  ${Y}⚠ Cancelled — no model entered${N}\n"
                 exit 0
             fi
             if [[ "$NEW_MODEL" == "$CURRENT_MODEL" ]]; then
-                echo -e "  ${Y}⚠ That's already the current model${N}"
+                printf "  ${Y}⚠ That's already the current model${N}\n"
                 exit 0
             fi
         else
-            echo -e "  ${R}✘ No models available for provider: $PROVIDER${N}"
+            printf "  ${R}✘ No models available for provider: $PROVIDER${N}\n"
             exit 1
         fi
     else
@@ -4210,21 +4270,21 @@ moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
         done <<< "$MODEL_DATA"
 
         if [[ ${#MODEL_IDS[@]} -eq 0 ]]; then
-            echo -e "  ${Y}⚠ No other models available for this provider${N}"
+            printf "  ${Y}⚠ No other models available for this provider${N}\n"
             echo ""
-            echo -ne "  ${C}➜${N} Enter custom model ID (or press Enter to cancel): "
+            printf "  ${C}➜${N} Enter custom model ID (or press Enter to cancel): "
             read -r NEW_MODEL
             if [[ -z "$NEW_MODEL" ]]; then
-                echo -e "  ${D}Cancelled.${N}"
+                printf "  ${D}Cancelled.${N}\n"
                 exit 0
             fi
             if [[ "$NEW_MODEL" == "$CURRENT_MODEL" ]]; then
-                echo -e "  ${Y}⚠ That's already the current model${N}"
+                printf "  ${Y}⚠ That's already the current model${N}\n"
                 exit 0
             fi
         else
             local COUNT=${#MODEL_IDS[@]}
-            echo -e "  ${B}Available models:${N}"
+            printf "  ${B}Available models:${N}\n"
             echo ""
 
             for i in "${!MODEL_IDS[@]}"; do
@@ -4237,19 +4297,19 @@ moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
             echo ""
 
             while true; do
-                echo -ne "  ${C}➜${N} Choose (1-${COUNT}, or c for custom): "
+                printf "  ${C}➜${N} Choose (1-${COUNT}, or c for custom): "
                 local CHOICE=""
                 read -r CHOICE
 
                 if [[ "$CHOICE" == "c" || "$CHOICE" == "C" ]]; then
-                    echo -ne "  ${C}➜${N} Enter model ID: "
+                    printf "  ${C}➜${N} Enter model ID: "
                     read -r NEW_MODEL
                     if [[ -z "$NEW_MODEL" ]]; then
-                        echo -e "  ${Y}⚠ Cancelled — no model entered${N}"
+                        printf "  ${Y}⚠ Cancelled — no model entered${N}\n"
                         exit 0
                     fi
                     if [[ "$NEW_MODEL" == "$CURRENT_MODEL" ]]; then
-                        echo -e "  ${Y}⚠ That's already the current model${N}"
+                        printf "  ${Y}⚠ That's already the current model${N}\n"
                         continue
                     fi
                     break
@@ -4257,22 +4317,22 @@ moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
                     NEW_MODEL="${MODEL_IDS[$((CHOICE - 1))]}"
                     break
                 else
-                    echo -e "  ${Y}⚠ Invalid — enter 1-${COUNT} or c for custom${N}"
+                    printf "  ${Y}⚠ Invalid — enter 1-${COUNT} or c for custom${N}\n"
                 fi
             done
         fi
     fi
 
     echo ""
-    echo -e "  ${D}Change model:${N}"
-    echo -e "    ${R}${CURRENT_MODEL}${N}  →  ${G}${NEW_MODEL}${N}"
+    printf "  ${D}Change model:${N}\n"
+    printf "    ${R}${CURRENT_MODEL}${N}  →  ${G}${NEW_MODEL}${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} Apply this change? ${D}[Y/n]${N}: "
+    printf "  ${C}➜${N} Apply this change? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         exit 0
     fi
 
@@ -4281,47 +4341,47 @@ moonshotai/kimi-k2-instruct-0905|Moonshot Kimi K2, 200 t/s"
     if jq --arg m "$NEW_MODEL" '.agents.defaults.model = $m' "$CFG" > "$TMPFILE" 2>/dev/null; then
         mv "$TMPFILE" "$CFG"
         echo ""
-        echo -e "  ${G}✔${N} Model changed to: ${B}${NEW_MODEL}${N}"
-        echo -e "  ${D}Config: ${CFG}${N}"
+        printf "  ${G}✔${N} Model changed to: ${B}${NEW_MODEL}${N}\n"
+        printf "  ${D}Config: ${CFG}${N}\n"
     else
         rm -f "$TMPFILE"
-        echo -e "  ${R}✘ Failed to update config — jq error${N}"
+        printf "  ${R}✘ Failed to update config — jq error${N}\n"
         exit 1
     fi
 
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
         echo ""
-        echo -ne "  ${C}➜${N} Restart gateway to apply? ${D}[Y/n]${N}: "
+        printf "  ${C}➜${N} Restart gateway to apply? ${D}[Y/n]${N}: "
         local DO_RESTART=""
         read -r DO_RESTART
         DO_RESTART="${DO_RESTART:-y}"
         if [[ "${DO_RESTART,,}" == "y" || "${DO_RESTART,,}" == "yes" ]]; then
-            echo -e "  ${M}🦞${N} Restarting gateway..."
+            printf "  ${M}🦞${N} Restarting gateway...\n"
             systemctl restart "$SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} Gateway running with ${B}${NEW_MODEL}${N}"
+                printf "  ${G}✔${N} Gateway running with ${B}${NEW_MODEL}${N}\n"
             else
-                echo -e "  ${Y}⚠${N} Gateway may have issues — check: picoclaw logs"
+                printf "  ${Y}⚠${N} Gateway may have issues — check: picoclaw logs\n"
             fi
         else
-            echo -e "  ${D}Model saved. Restart later with: picoclaw restart${N}"
+            printf "  ${D}Model saved. Restart later with: picoclaw restart${N}\n"
         fi
     else
-        echo -e "  ${D}Gateway not running. Start with: picoclaw start${N}"
+        printf "  ${D}Gateway not running. Start with: picoclaw start${N}\n"
     fi
     echo ""
 }
 
 cmd_telegram() {
     if [[ ! -f "$CFG" ]]; then
-        echo -e "  ${R}✘ Config not found: ${CFG}${N}"
-        echo -e "  ${D}Run the installer first.${N}"
+        printf "  ${R}✘ Config not found: ${CFG}${N}\n"
+        printf "  ${D}Run the installer first.${N}\n"
         exit 1
     fi
 
     if ! command -v jq &>/dev/null; then
-        echo -e "  ${R}✘ jq is required but not installed${N}"
+        printf "  ${R}✘ jq is required but not installed${N}\n"
         exit 1
     fi
 
@@ -4346,25 +4406,25 @@ cmd_telegram() {
     local CHANGED=false
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Telegram Manager${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Telegram Manager${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if [[ "$TG_ENABLED" == "true" ]]; then
-        echo -e "  Status:  ${G}● enabled${N}"
+        printf "  Status:  ${G}● enabled${N}\n"
     else
-        echo -e "  Status:  ${D}○ disabled${N}"
+        printf "  Status:  ${D}○ disabled${N}\n"
     fi
 
     if [[ -n "$TG_TOKEN" ]]; then
         local masked_token="${TG_TOKEN:0:8}...${TG_TOKEN: -4}"
-        echo -e "  Token:   ${D}${masked_token}${N}"
+        printf "  Token:   ${D}${masked_token}${N}\n"
     else
-        echo -e "  Token:   ${R}not set${N}"
+        printf "  Token:   ${R}not set${N}\n"
     fi
 
     if [[ ${#TG_USERS[@]} -gt 0 ]]; then
-        echo -e "  Users:   ${B}${#TG_USERS[@]}${N} allowed"
+        printf "  Users:   ${B}${#TG_USERS[@]}${N} allowed\n"
         for i in "${!TG_USERS[@]}"; do
             local u="${TG_USERS[$i]}"
             local uid="" uname="" marker=""
@@ -4385,55 +4445,55 @@ cmd_telegram() {
             fi
         done
     else
-        echo -e "  Users:   ${D}none (all messages accepted)${N}"
+        printf "  Users:   ${D}none (all messages accepted)${N}\n"
     fi
 
     echo ""
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if [[ "$TG_ENABLED" == "true" ]]; then
-        echo -e "    ${C}1${N}) Change bot token"
-        echo -e "    ${C}2${N}) Add user"
-        echo -e "    ${C}3${N}) Remove user"
-        echo -e "    ${C}4${N}) Disable Telegram  ${R}(removes all Telegram config)${N}"
-        echo -e "    ${C}0${N}) Back ${D}(cancel)${N}"
+        printf "    ${C}1${N}) Change bot token\n"
+        printf "    ${C}2${N}) Add user\n"
+        printf "    ${C}3${N}) Remove user\n"
+        printf "    ${C}4${N}) Disable Telegram  ${R}(removes all Telegram config)${N}\n"
+        printf "    ${C}0${N}) Back ${D}(cancel)${N}\n"
         echo ""
 
         local MENU_CHOICE=""
         while true; do
-            echo -ne "  ${C}➜${N} Choose (0-4): "
+            printf "  ${C}➜${N} Choose (0-4): "
             read -r MENU_CHOICE
             if [[ "$MENU_CHOICE" =~ ^[0-4]$ ]]; then
                 break
             fi
-            echo -e "  ${Y}⚠ Invalid — enter 0-4${N}"
+            printf "  ${Y}⚠ Invalid — enter 0-4${N}\n"
         done
 
         case "$MENU_CHOICE" in
-            0) echo -e "  ${D}No changes.${N}"; echo ""; return 0 ;;
+            0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
             1) _tg_change_token ;;
             2) _tg_add_user ;;
             3) _tg_remove_user ;;
             4) _tg_disable ;;
         esac
     else
-        echo -e "    ${C}1${N}) Enable Telegram"
-        echo -e "    ${C}0${N}) Back ${D}(cancel)${N}"
+        printf "    ${C}1${N}) Enable Telegram\n"
+        printf "    ${C}0${N}) Back ${D}(cancel)${N}\n"
         echo ""
 
         local MENU_CHOICE=""
         while true; do
-            echo -ne "  ${C}➜${N} Choose (0-1): "
+            printf "  ${C}➜${N} Choose (0-1): "
             read -r MENU_CHOICE
             if [[ "$MENU_CHOICE" =~ ^[0-1]$ ]]; then
                 break
             fi
-            echo -e "  ${Y}⚠ Invalid — enter 0 or 1${N}"
+            printf "  ${Y}⚠ Invalid — enter 0 or 1${N}\n"
         done
 
         case "$MENU_CHOICE" in
-            0) echo -e "  ${D}No changes.${N}"; echo ""; return 0 ;;
+            0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
             1) _tg_enable ;;
         esac
     fi
@@ -4441,17 +4501,17 @@ cmd_telegram() {
     if [[ "$CHANGED" == "true" ]]; then
         if systemctl is-active --quiet "$SVC" 2>/dev/null; then
             echo ""
-            echo -e "  ${M}🦞${N} Restarting gateway to apply changes..."
+            printf "  ${M}🦞${N} Restarting gateway to apply changes...\n"
             systemctl restart "$SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} Gateway restarted successfully"
+                printf "  ${G}✔${N} Gateway restarted successfully\n"
             else
-                echo -e "  ${Y}⚠${N} Gateway may have issues — check: picoclaw logs"
+                printf "  ${Y}⚠${N} Gateway may have issues — check: picoclaw logs\n"
             fi
         else
             echo ""
-            echo -e "  ${D}Gateway not running. Start with: picoclaw start${N}"
+            printf "  ${D}Gateway not running. Start with: picoclaw start${N}\n"
         fi
     fi
     echo ""
@@ -4459,21 +4519,21 @@ cmd_telegram() {
 
 _tg_change_token() {
     echo ""
-    echo -e "  ${D}Current token: ${TG_TOKEN:0:8}...${TG_TOKEN: -4}${N}"
-    echo -e "  ${D}Create new: @BotFather → /newbot or /token${N}"
+    printf "  ${D}Current token: ${TG_TOKEN:0:8}...${TG_TOKEN: -4}${N}\n"
+    printf "  ${D}Create new: @BotFather → /newbot or /token${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} New bot token (or press Enter to cancel): "
+    printf "  ${C}➜${N} New bot token (or press Enter to cancel): "
     local NEW_TOKEN=""
     read -rs NEW_TOKEN
     echo ""
 
     if [[ -z "$NEW_TOKEN" ]]; then
-        echo -e "  ${D}Cancelled — token unchanged.${N}"
+        printf "  ${D}Cancelled — token unchanged.${N}\n"
         return 0
     fi
 
     if [[ "$NEW_TOKEN" == "$TG_TOKEN" ]]; then
-        echo -e "  ${Y}⚠ That's the same token — no change.${N}"
+        printf "  ${Y}⚠ That's the same token — no change.${N}\n"
         return 0
     fi
 
@@ -4484,39 +4544,39 @@ _tg_change_token() {
     if jq --arg t "$SAFE_TOKEN" '.channels.telegram.token = $t' "$CFG" > "$TMPFILE" 2>/dev/null; then
         mv "$TMPFILE" "$CFG"
         CHANGED=true
-        echo -e "  ${G}✔${N} Bot token updated"
+        printf "  ${G}✔${N} Bot token updated\n"
     else
         rm -f "$TMPFILE"
-        echo -e "  ${R}✘ Failed to update config${N}"
+        printf "  ${R}✘ Failed to update config${N}\n"
     fi
 }
 
 _tg_add_user() {
     echo ""
-    echo -e "  ${D}Each user needs a numeric Telegram ID and username.${N}"
-    echo -e "  ${D}Get ID: message @userinfobot on Telegram${N}"
-    echo -e "  ${D}Username: your @handle without the @${N}"
+    printf "  ${D}Each user needs a numeric Telegram ID and username.${N}\n"
+    printf "  ${D}Get ID: message @userinfobot on Telegram${N}\n"
+    printf "  ${D}Username: your @handle without the @${N}\n"
     echo ""
 
     local NEW_UID="" NEW_UNAME=""
-    echo -ne "  ${C}➜${N} User ID (numeric, e.g. 5323045369): "
+    printf "  ${C}➜${N} User ID (numeric, e.g. 5323045369): "
     read -r NEW_UID
 
     if [[ -z "$NEW_UID" ]]; then
-        echo -e "  ${D}Cancelled — no user added.${N}"
+        printf "  ${D}Cancelled — no user added.${N}\n"
         return 0
     fi
 
     if ! [[ "$NEW_UID" =~ ^[0-9]+$ ]]; then
-        echo -e "  ${R}✘ User ID must be numeric${N}"
+        printf "  ${R}✘ User ID must be numeric${N}\n"
         return 0
     fi
 
-    echo -ne "  ${C}➜${N} Username (without @, e.g. johndoe): "
+    printf "  ${C}➜${N} Username (without @, e.g. johndoe): "
     read -r NEW_UNAME
 
     if [[ -z "$NEW_UNAME" ]]; then
-        echo -e "  ${R}✘ Username is required (PicoClaw uses ID|username format)${N}"
+        printf "  ${R}✘ Username is required (PicoClaw uses ID|username format)${N}\n"
         return 0
     fi
 
@@ -4524,19 +4584,19 @@ _tg_add_user() {
 
     for existing in "${TG_USERS[@]}"; do
         if [[ "$existing" == "$COMPOSITE" ]]; then
-            echo -e "  ${Y}⚠ User ${COMPOSITE} already exists${N}"
+            printf "  ${Y}⚠ User ${COMPOSITE} already exists${N}\n"
             return 0
         fi
     done
 
     echo ""
-    echo -e "  ${D}Add user:${N} ${G}${NEW_UID}${N} | ${G}@${NEW_UNAME}${N}"
-    echo -ne "  ${C}➜${N} Confirm? ${D}[Y/n]${N}: "
+    printf "  ${D}Add user:${N} ${G}${NEW_UID}${N} | ${G}@${NEW_UNAME}${N}\n"
+    printf "  ${C}➜${N} Confirm? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
@@ -4548,21 +4608,21 @@ _tg_add_user() {
         mv "$TMPFILE" "$CFG"
         CHANGED=true
         TG_USERS+=("$COMPOSITE")
-        echo -e "  ${G}✔${N} User added: ${B}${COMPOSITE}${N} (${#TG_USERS[@]} total)"
+        printf "  ${G}✔${N} User added: ${B}${COMPOSITE}${N} (${#TG_USERS[@]} total)\n"
     else
         rm -f "$TMPFILE"
-        echo -e "  ${R}✘ Failed to update config${N}"
+        printf "  ${R}✘ Failed to update config${N}\n"
     fi
 }
 
 _tg_remove_user() {
     if [[ ${#TG_USERS[@]} -eq 0 ]]; then
-        echo -e "  ${Y}⚠ No users to remove${N}"
+        printf "  ${Y}⚠ No users to remove${N}\n"
         return 0
     fi
 
     echo ""
-    echo -e "  ${B}Current users:${N}"
+    printf "  ${B}Current users:${N}\n"
     echo ""
 
     local REMOVABLE=0
@@ -4596,26 +4656,26 @@ _tg_remove_user() {
     echo ""
 
     if [[ $REMOVABLE -eq 0 ]]; then
-        echo -e "  ${Y}⚠ Only the primary user exists — cannot remove it.${N}"
-        echo -e "  ${D}Use 'Disable Telegram' to remove all config instead.${N}"
+        printf "  ${Y}⚠ Only the primary user exists — cannot remove it.${N}\n"
+        printf "  ${D}Use 'Disable Telegram' to remove all config instead.${N}\n"
         return 0
     fi
 
     local TOTAL=${#TG_USERS[@]}
     local RM_CHOICE=""
     while true; do
-        echo -ne "  ${C}➜${N} User number to remove (2-${TOTAL}, or 0 to cancel): "
+        printf "  ${C}➜${N} User number to remove (2-${TOTAL}, or 0 to cancel): "
         read -r RM_CHOICE
 
         if [[ "$RM_CHOICE" == "0" ]]; then
-            echo -e "  ${D}Cancelled.${N}"
+            printf "  ${D}Cancelled.${N}\n"
             return 0
         fi
 
         if [[ "$RM_CHOICE" =~ ^[0-9]+$ ]] && (( RM_CHOICE >= 2 && RM_CHOICE <= TOTAL )); then
             break
         fi
-        echo -e "  ${Y}⚠ Invalid — enter 2-${TOTAL} or 0 to cancel${N}"
+        printf "  ${Y}⚠ Invalid — enter 2-${TOTAL} or 0 to cancel${N}\n"
     done
 
     local IDX=$((RM_CHOICE - 1))
@@ -4632,16 +4692,16 @@ _tg_remove_user() {
 
     echo ""
     if [[ -n "$t_uname" ]]; then
-        echo -e "  ${D}Remove user:${N} ${R}${t_uid}${N} | ${R}@${t_uname}${N}"
+        printf "  ${D}Remove user:${N} ${R}${t_uid}${N} | ${R}@${t_uname}${N}\n"
     else
-        echo -e "  ${D}Remove user:${N} ${R}${t_uid}${N}"
+        printf "  ${D}Remove user:${N} ${R}${t_uid}${N}\n"
     fi
-    echo -ne "  ${C}➜${N} Confirm? ${D}[y/N]${N}: "
+    printf "  ${C}➜${N} Confirm? ${D}[y/N]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-n}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
@@ -4652,30 +4712,30 @@ _tg_remove_user() {
         CHANGED=true
         unset 'TG_USERS[$IDX]'
         TG_USERS=("${TG_USERS[@]}")
-        echo -e "  ${G}✔${N} User removed (${#TG_USERS[@]} remaining)"
+        printf "  ${G}✔${N} User removed (${#TG_USERS[@]} remaining)\n"
     else
         rm -f "$TMPFILE"
-        echo -e "  ${R}✘ Failed to update config${N}"
+        printf "  ${R}✘ Failed to update config${N}\n"
     fi
 }
 
 _tg_disable() {
     echo ""
-    echo -e "  ${R}${B}  ⚠  WARNING: This will completely disable Telegram${N}"
+    printf "  ${R}${B}  ⚠  WARNING: This will completely disable Telegram${N}\n"
     echo ""
-    echo -e "  The following will be ${R}permanently removed${N} from config:"
-    echo -e "    • Bot token"
-    echo -e "    • All allowed users (${#TG_USERS[@]} user(s))"
-    echo -e "    • Telegram will be set to disabled"
+    printf "  The following will be ${R}permanently removed${N} from config:\n"
+    printf "    • Bot token\n"
+    printf "    • All allowed users (${#TG_USERS[@]} user(s))\n"
+    printf "    • Telegram will be set to disabled\n"
     echo ""
-    echo -e "  ${D}You can re-enable later with: picoclaw telegram${N}"
+    printf "  ${D}You can re-enable later with: picoclaw telegram${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} Type ${R}DISABLE${N} to confirm (anything else cancels): "
+    printf "  ${C}➜${N} Type ${R}DISABLE${N} to confirm (anything else cancels): "
     local CONFIRM=""
     read -r CONFIRM
 
     if [[ "$CONFIRM" != "DISABLE" ]]; then
-        echo -e "  ${D}Cancelled — Telegram unchanged.${N}"
+        printf "  ${D}Cancelled — Telegram unchanged.${N}\n"
         return 0
     fi
 
@@ -4689,68 +4749,68 @@ _tg_disable() {
         TG_USERS=()
         PRIMARY_USER=""
         echo ""
-        echo -e "  ${G}✔${N} Telegram disabled — token and all users removed"
+        printf "  ${G}✔${N} Telegram disabled — token and all users removed\n"
     else
         rm -f "$TMPFILE"
-        echo -e "  ${R}✘ Failed to update config${N}"
+        printf "  ${R}✘ Failed to update config${N}\n"
     fi
 }
 
 _tg_enable() {
     echo ""
-    echo -e "  ${B}Enable Telegram${N}"
+    printf "  ${B}Enable Telegram${N}\n"
     echo ""
-    echo -e "  ${D}Create a bot: @BotFather → /newbot${N}"
-    echo -e "  ${D}Get your ID: @userinfobot on Telegram${N}"
-    echo -e "  ${D}Get username: Telegram Settings → your @username (without @)${N}"
+    printf "  ${D}Create a bot: @BotFather → /newbot${N}\n"
+    printf "  ${D}Get your ID: @userinfobot on Telegram${N}\n"
+    printf "  ${D}Get username: Telegram Settings → your @username (without @)${N}\n"
     echo ""
 
     local NEW_TOKEN=""
-    echo -ne "  ${C}➜${N} Bot token: "
+    printf "  ${C}➜${N} Bot token: "
     read -rs NEW_TOKEN
     echo ""
 
     if [[ -z "$NEW_TOKEN" ]]; then
-        echo -e "  ${R}✘ Bot token is required${N}"
+        printf "  ${R}✘ Bot token is required${N}\n"
         return 0
     fi
 
     local NEW_UID=""
-    echo -ne "  ${C}➜${N} Your user ID (numeric): "
+    printf "  ${C}➜${N} Your user ID (numeric): "
     read -r NEW_UID
 
     if [[ -z "$NEW_UID" ]]; then
-        echo -e "  ${R}✘ User ID is required${N}"
+        printf "  ${R}✘ User ID is required${N}\n"
         return 0
     fi
 
     if ! [[ "$NEW_UID" =~ ^[0-9]+$ ]]; then
-        echo -e "  ${R}✘ User ID must be numeric${N}"
+        printf "  ${R}✘ User ID must be numeric${N}\n"
         return 0
     fi
 
     local NEW_UNAME=""
-    echo -ne "  ${C}➜${N} Your username (without @): "
+    printf "  ${C}➜${N} Your username (without @): "
     read -r NEW_UNAME
 
     if [[ -z "$NEW_UNAME" ]]; then
-        echo -e "  ${R}✘ Username is required (PicoClaw uses ID|username format)${N}"
+        printf "  ${R}✘ Username is required (PicoClaw uses ID|username format)${N}\n"
         return 0
     fi
 
     local COMPOSITE="${NEW_UID}|${NEW_UNAME}"
 
     echo ""
-    echo -e "  ${D}Enable Telegram with:${N}"
-    echo -e "    Token:   ${D}${NEW_TOKEN:0:8}...${NEW_TOKEN: -4}${N}"
-    echo -e "    User:    ${G}${NEW_UID}${N} | ${G}@${NEW_UNAME}${N}"
+    printf "  ${D}Enable Telegram with:${N}\n"
+    printf "    Token:   ${D}${NEW_TOKEN:0:8}...${NEW_TOKEN: -4}${N}\n"
+    printf "    User:    ${G}${NEW_UID}${N} | ${G}@${NEW_UNAME}${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} Confirm? ${D}[Y/n]${N}: "
+    printf "  ${C}➜${N} Confirm? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
@@ -4770,11 +4830,11 @@ _tg_enable() {
         TG_USERS=("$COMPOSITE")
         PRIMARY_USER="$COMPOSITE"
         echo ""
-        echo -e "  ${G}✔${N} Telegram enabled"
-        echo -e "  ${G}✔${N} Primary user: ${B}${COMPOSITE}${N}"
+        printf "  ${G}✔${N} Telegram enabled\n"
+        printf "  ${G}✔${N} Primary user: ${B}${COMPOSITE}${N}\n"
     else
         rm -f "$TMPFILE"
-        echo -e "  ${R}✘ Failed to update config${N}"
+        printf "  ${R}✘ Failed to update config${N}\n"
     fi
 }
 
@@ -4784,13 +4844,15 @@ cmd_backup() {
     local subcmd="${2:-}"
 
     case "$subcmd" in
-        --auto)  _backup_run "auto" ;;
-        list)    _backup_list ;;
-        settings) _backup_settings ;;
-        "")      _backup_interactive ;;
+        --auto)    _backup_run "auto" ;;
+        --initial) _backup_run "initial" ;;
+        --manual)  _backup_run "manual" ;;
+        list)      _backup_list ;;
+        settings)  _backup_settings ;;
+        "")        _backup_interactive ;;
         *)
-            echo -e "  ${R}✘ Unknown backup sub-command: ${subcmd}${N}"
-            echo -e "  ${D}Usage: picoclaw backup [--auto|list|settings]${N}"
+            printf "  ${R}✘ Unknown backup sub-command: ${subcmd}${N}\n"
+            printf "  ${D}Usage: picoclaw backup [--auto|--manual|--initial|list|settings]${N}\n"
             exit 1
             ;;
     esac
@@ -4798,30 +4860,30 @@ cmd_backup() {
 
 _backup_interactive() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Backup${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Backup${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     local bk_count=0
     bk_count=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l) || true
 
-    echo -e "  Backup dir:    ${B}${BACKUP_DIR}${N}"
-    echo -e "  Snapshots:     ${B}${bk_count}${N} / max ${BACKUP_MAX_KEEP}"
-    echo -e "  Auto-backup:   $(if [[ -f /etc/cron.d/picoclaw-autobackup ]]; then echo -e "${G}● every ${BACKUP_INTERVAL_DAYS} days${N}"; else echo -e "${D}○ off${N}"; fi)"
+    printf "  Backup dir:    ${B}${BACKUP_DIR}${N}\n"
+    printf "  Snapshots:     ${B}${bk_count}${N} / max ${BACKUP_MAX_KEEP}\n"
+    printf "  Auto-backup:   $(if [[ -f /etc/cron.d/picoclaw-autobackup ]]; then printf "${G}● every ${BACKUP_INTERVAL_DAYS} days${N}"; else printf "${D}○ off${N}"; fi)\n"
     echo ""
 
-    echo -e "  ${D}A backup includes: config.json, workspace, skills, binary,${N}"
-    echo -e "  ${D}wrapper, systemd units, cron jobs, profile scripts, perf configs,${N}"
-    echo -e "  ${D}FTP configs, WhatsApp bridge source + auth session, Ollama config,${N}"
-    echo -e "  ${D}and source.${N}"
+    printf "  ${D}A backup includes: config.json, workspace, skills, binary,${N}\n"
+    printf "  ${D}wrapper, systemd units, cron jobs, profile scripts, perf configs,${N}\n"
+    printf "  ${D}FTP configs, WhatsApp bridge source + auth session, Ollama config,${N}\n"
+    printf "  ${D}and source.${N}\n"
     echo ""
 
-    echo -ne "  ${C}➜${N} Create a backup now? ${D}[Y/n]${N}: "
+    printf "  ${C}➜${N} Create a backup now? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         echo ""
         return 0
     fi
@@ -4854,24 +4916,24 @@ _backup_run() {
 
     mkdir -p "$snap_dir"
 
-    echo -e "  ${M}🦞${N} Creating backup: ${B}${snap_name}${N}"
+    printf "  ${M}🦞${N} Creating backup: ${B}${snap_name}${N}\n"
     echo ""
 
     if [[ -d "/root/.picoclaw" ]]; then
         mkdir -p "${snap_dir}/picoclaw_config"
         cp -a /root/.picoclaw/. "${snap_dir}/picoclaw_config/" 2>/dev/null || true
-        echo -e "  ${G}✔${N} Config dir: ~/.picoclaw/ (config.json, workspace, skills, atlas, etc.)"
+        printf "  ${G}✔${N} Config dir: ~/.picoclaw/ (config.json, workspace, skills, atlas, etc.)\n"
     fi
 
     if [[ -f "$BIN" ]]; then
         cp -a "$BIN" "${snap_dir}/picoclaw.bin" 2>/dev/null || true
-        echo -e "  ${G}✔${N} Binary: picoclaw.bin ($(du -h "$BIN" | awk '{print $1}'))"
+        printf "  ${G}✔${N} Binary: picoclaw.bin ($(du -h "$BIN" | awk '{print $1}'))\n"
     fi
 
     local WRAPPER="/usr/local/bin/picoclaw"
     if [[ -f "$WRAPPER" && "$WRAPPER" != "$BIN" ]]; then
         cp -a "$WRAPPER" "${snap_dir}/picoclaw.wrapper" 2>/dev/null || true
-        echo -e "  ${G}✔${N} Wrapper: picoclaw (CLI wrapper)"
+        printf "  ${G}✔${N} Wrapper: picoclaw (CLI wrapper)\n"
     fi
 
     local has_units=false
@@ -4886,7 +4948,7 @@ _backup_run() {
         fi
     done
     if [[ "$has_units" == "true" ]]; then
-        echo -e "  ${G}✔${N} Systemd units: gateway, watchdog, WhatsApp bridge"
+        printf "  ${G}✔${N} Systemd units: gateway, watchdog, WhatsApp bridge\n"
     fi
 
     local has_cron=false
@@ -4898,7 +4960,7 @@ _backup_run() {
         fi
     done
     if [[ "$has_cron" == "true" ]]; then
-        echo -e "  ${G}✔${N} Cron jobs: boot fallback, auto-backup"
+        printf "  ${G}✔${N} Cron jobs: boot fallback, auto-backup\n"
     fi
 
     local has_profile=false
@@ -4910,13 +4972,13 @@ _backup_run() {
         fi
     done
     if [[ "$has_profile" == "true" ]]; then
-        echo -e "  ${G}✔${N} Profile scripts: login banner, Go PATH"
+        printf "  ${G}✔${N} Profile scripts: login banner, Go PATH\n"
     fi
 
     if [[ -f /etc/logrotate.d/picoclaw ]]; then
         mkdir -p "${snap_dir}/logrotate"
         cp -a /etc/logrotate.d/picoclaw "${snap_dir}/logrotate/" 2>/dev/null || true
-        echo -e "  ${G}✔${N} Logrotate config"
+        printf "  ${G}✔${N} Logrotate config\n"
     fi
 
     local has_perf=false
@@ -4937,7 +4999,7 @@ _backup_run() {
         fi
     done
     if [[ "$has_perf" == "true" ]]; then
-        echo -e "  ${G}✔${N} Performance configs: sysctl, limits, I/O, DNS, zram, etc."
+        printf "  ${G}✔${N} Performance configs: sysctl, limits, I/O, DNS, zram, etc.\n"
     fi
 
     local has_ftp=false
@@ -4953,7 +5015,7 @@ _backup_run() {
         has_ftp=true
     fi
     if [[ "$has_ftp" == "true" ]]; then
-        echo -e "  ${G}✔${N} FTP configs: vsftpd.conf, user_list, ftp.conf"
+        printf "  ${G}✔${N} FTP configs: vsftpd.conf, user_list, ftp.conf\n"
     fi
 
     # ── WhatsApp bridge backup ──
@@ -4974,7 +5036,7 @@ _backup_run() {
         cp -a "$WA_BRIDGE_AUTH_DIR"/. "${snap_dir}/whatsapp/auth/" 2>/dev/null || true
         has_wa=true
         if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-            echo -e "  ${G}✔${N} WhatsApp auth: creds.json (session preserved)"
+            printf "  ${G}✔${N} WhatsApp auth: creds.json (session preserved)\n"
         fi
     fi
     if [[ -f "$WA_CONF" ]]; then
@@ -4986,7 +5048,7 @@ _backup_run() {
         has_wa=true
     fi
     if [[ "$has_wa" == "true" ]]; then
-        echo -e "  ${G}✔${N} WhatsApp: bridge source, auth, config, systemd unit"
+        printf "  ${G}✔${N} WhatsApp: bridge source, auth, config, systemd unit\n"
     fi
 
     # ── Ollama backup ──
@@ -5000,7 +5062,7 @@ _backup_run() {
         cp -a /tmp/picoclaw-modelfile "${snap_dir}/ollama/" 2>/dev/null || true
     fi
     if [[ "$has_ollama" == "true" ]]; then
-        echo -e "  ${G}✔${N} Ollama: ollama.conf"
+        printf "  ${G}✔${N} Ollama: ollama.conf\n"
     fi
 
     if [[ -d "/opt/picoclaw" ]]; then
@@ -5010,13 +5072,16 @@ _backup_run() {
         else
             cp -a /opt/picoclaw "${snap_dir}/source/" 2>/dev/null || true
         fi
-        echo -e "  ${G}✔${N} Source: /opt/picoclaw (excluding .git)"
+        printf "  ${G}✔${N} Source: /opt/picoclaw (excluding .git)\n"
     fi
 
     local pc_ver=""
     if [[ -x "$BIN" ]]; then
         pc_ver=$("$BIN" version 2>/dev/null) || pc_ver="unknown"
     fi
+    pc_ver=$(_json_escape "$pc_ver")
+    local safe_hostname
+    safe_hostname=$(_json_escape "$(hostname 2>/dev/null || echo 'unknown')")
     local snap_size
     snap_size=$(du -sh "$snap_dir" 2>/dev/null | awk '{print $1}') || snap_size="unknown"
 
@@ -5027,7 +5092,7 @@ _backup_run() {
   "timestamp_epoch": $(date +%s),
   "trigger": "${trigger}",
   "picoclaw_version": "${pc_ver}",
-  "hostname": "$(hostname 2>/dev/null || echo "unknown")",
+  "hostname": "${safe_hostname}",
   "arch": "$(uname -m)",
   "size": "${snap_size}",
   "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
@@ -5049,7 +5114,7 @@ _backup_run() {
   }
 }
 METAEOF
-    echo -e "  ${G}✔${N} Metadata: backup.meta"
+    printf "  ${G}✔${N} Metadata: backup.meta\n"
 
     if [[ "$trigger" == "auto" ]]; then
         date +%s > "${BACKUP_DIR}/.last_auto_backup"
@@ -5060,8 +5125,8 @@ METAEOF
     local total_backups
     total_backups=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l)
     echo ""
-    echo -e "  ${G}✔${N} Backup complete: ${B}${snap_dir}${N} (${snap_size})"
-    echo -e "  ${D}  Total backups: ${total_backups} / max ${BACKUP_MAX_KEEP}${N}"
+    printf "  ${G}✔${N} Backup complete: ${B}${snap_dir}${N} (${snap_size})\n"
+    printf "  ${D}  Total backups: ${total_backups} / max ${BACKUP_MAX_KEEP}${N}\n"
 }
 
 _backup_purge_old() {
@@ -5080,25 +5145,25 @@ _backup_purge_old() {
 
     local to_remove=$((count - BACKUP_MAX_KEEP))
     echo ""
-    echo -e "  ${Y}⚠${N} Purging ${to_remove} old backup(s) (keeping ${BACKUP_MAX_KEEP})..."
+    printf "  ${Y}⚠${N} Purging ${to_remove} old backup(s) (keeping ${BACKUP_MAX_KEEP})...\n"
 
     for (( i=0; i<to_remove; i++ )); do
         local old_dir="${all_backups[$i]}"
-        local old_name
-        old_name=$(basename "$old_dir")
+        local old_name="${old_dir%/}"
+        old_name="${old_name##*/}"
         rm -rf "$old_dir"
-        echo -e "  ${G}✔${N} Purged: ${D}${old_name}${N}"
+        printf "  ${G}✔${N} Purged: ${D}${old_name}${N}\n"
     done
 }
 
 _backup_list() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Backup List${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Backup List${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if [[ ! -d "$BACKUP_DIR" ]]; then
-        echo -e "  ${D}No backups found. Create one with: picoclaw backup${N}"
+        printf "  ${D}No backups found. Create one with: picoclaw backup${N}\n"
         echo ""
         return 0
     fi
@@ -5113,21 +5178,21 @@ _backup_list() {
     local count=${#all_backups[@]}
 
     if [[ $count -eq 0 ]]; then
-        echo -e "  ${D}No backups found. Create one with: picoclaw backup${N}"
+        printf "  ${D}No backups found. Create one with: picoclaw backup${N}\n"
         echo ""
         return 0
     fi
 
-    echo -e "  ${B}${count}${N} backup(s) in ${BACKUP_DIR}  ${D}(max ${BACKUP_MAX_KEEP})${N}"
+    printf "  ${B}${count}${N} backup(s) in ${BACKUP_DIR}  ${D}(max ${BACKUP_MAX_KEEP})${N}\n"
     echo ""
 
     printf "    ${B}%-4s %-24s %-10s %-10s %-8s${N}\n" "#" "Name" "Trigger" "Version" "Size"
-    echo -e "    ${D}──── ──────────────────────── ────────── ────────── ────────${N}"
+    printf "    ${D}──── ──────────────────────── ────────── ────────── ────────${N}\n"
 
     local num=1
     for bk_dir in "${all_backups[@]}"; do
-        local bk_name
-        bk_name=$(basename "$bk_dir")
+        local bk_name="${bk_dir%/}"
+        bk_name="${bk_name##*/}"
         local bk_trigger="?" bk_ver="?" bk_size="?"
         local meta_file="${bk_dir}/backup.meta"
 
@@ -5163,15 +5228,15 @@ _backup_list() {
     done
 
     echo ""
-    echo -e "  ${D}Auto-backup: $(if [[ -f /etc/cron.d/picoclaw-autobackup ]]; then echo "every ${BACKUP_INTERVAL_DAYS} days at 03:00"; else echo "off"; fi)${N}"
-    echo -e "  ${D}Manage: picoclaw backup settings${N}"
+    printf "  ${D}Auto-backup: $(if [[ -f /etc/cron.d/picoclaw-autobackup ]]; then echo "every ${BACKUP_INTERVAL_DAYS} days at 03:00"; else echo "off"; fi)${N}\n"
+    printf "  ${D}Manage: picoclaw backup settings${N}\n"
     echo ""
 }
 
 _backup_settings() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Backup Settings${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Backup Settings${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     local bk_count=0
@@ -5181,14 +5246,14 @@ _backup_settings() {
         auto_active=true
     fi
 
-    echo -e "  Backup dir:      ${B}${BACKUP_DIR}${N}"
-    echo -e "  Total snapshots: ${B}${bk_count}${N}"
-    echo -e "  Max to keep:     ${B}${BACKUP_MAX_KEEP}${N}"
-    echo -e "  Interval:        ${B}every ${BACKUP_INTERVAL_DAYS} day(s)${N}"
+    printf "  Backup dir:      ${B}${BACKUP_DIR}${N}\n"
+    printf "  Total snapshots: ${B}${bk_count}${N}\n"
+    printf "  Max to keep:     ${B}${BACKUP_MAX_KEEP}${N}\n"
+    printf "  Interval:        ${B}every ${BACKUP_INTERVAL_DAYS} day(s)${N}\n"
     if [[ "$auto_active" == "true" ]]; then
-        echo -e "  Auto-backup:     ${G}● enabled${N} (cron at 03:00 daily, checks interval)"
+        printf "  Auto-backup:     ${G}● enabled${N} (cron at 03:00 daily, checks interval)\n"
     else
-        echo -e "  Auto-backup:     ${D}○ disabled${N}"
+        printf "  Auto-backup:     ${D}○ disabled${N}\n"
     fi
 
     if [[ -f "${BACKUP_DIR}/.last_auto_backup" ]]; then
@@ -5200,37 +5265,37 @@ _backup_settings() {
             local now_epoch
             now_epoch=$(date +%s)
             local days_ago=$(( (now_epoch - last_epoch) / 86400 ))
-            echo -e "  Last auto:       ${D}${last_date} (${days_ago} day(s) ago)${N}"
+            printf "  Last auto:       ${D}${last_date} (${days_ago} day(s) ago)${N}\n"
         fi
     fi
 
     echo ""
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
-    echo -e "    ${C}1${N}) Change max backups to keep"
-    echo -e "    ${C}2${N}) Change backup interval (days)"
+    printf "    ${C}1${N}) Change max backups to keep\n"
+    printf "    ${C}2${N}) Change backup interval (days)\n"
     if [[ "$auto_active" == "true" ]]; then
-        echo -e "    ${C}3${N}) Disable auto-backup"
+        printf "    ${C}3${N}) Disable auto-backup\n"
     else
-        echo -e "    ${C}3${N}) Enable auto-backup"
+        printf "    ${C}3${N}) Enable auto-backup\n"
     fi
-    echo -e "    ${C}4${N}) Purge all backups  ${R}(permanently delete all)${N}"
-    echo -e "    ${C}0${N}) Back ${D}(no changes)${N}"
+    printf "    ${C}4${N}) Purge all backups  ${R}(permanently delete all)${N}\n"
+    printf "    ${C}0${N}) Back ${D}(no changes)${N}\n"
     echo ""
 
     local MENU_CHOICE=""
     while true; do
-        echo -ne "  ${C}➜${N} Choose (0-4): "
+        printf "  ${C}➜${N} Choose (0-4): "
         read -r MENU_CHOICE
         if [[ "$MENU_CHOICE" =~ ^[0-4]$ ]]; then
             break
         fi
-        echo -e "  ${Y}⚠ Invalid — enter 0-4${N}"
+        printf "  ${Y}⚠ Invalid — enter 0-4${N}\n"
     done
 
     case "$MENU_CHOICE" in
-        0) echo -e "  ${D}No changes.${N}"; echo ""; return 0 ;;
+        0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
         1) _bk_change_max ;;
         2) _bk_change_interval ;;
         3)
@@ -5247,81 +5312,81 @@ _backup_settings() {
 
 _bk_change_max() {
     echo ""
-    echo -e "  ${D}Current max: ${BACKUP_MAX_KEEP} backups${N}"
+    printf "  ${D}Current max: ${BACKUP_MAX_KEEP} backups${N}\n"
     echo ""
     local NEW_MAX=""
     while true; do
-        echo -ne "  ${C}➜${N} New max backups to keep (1-999): "
+        printf "  ${C}➜${N} New max backups to keep (1-999): "
         read -r NEW_MAX
         if [[ "$NEW_MAX" =~ ^[1-9][0-9]*$ ]] && (( NEW_MAX >= 1 && NEW_MAX <= 999 )); then
             break
         fi
-        echo -e "  ${Y}⚠ Must be a positive integer between 1 and 999${N}"
+        printf "  ${Y}⚠ Must be a positive integer between 1 and 999${N}\n"
     done
 
     if [[ "$NEW_MAX" == "$BACKUP_MAX_KEEP" ]]; then
-        echo -e "  ${Y}⚠ Same value — no change.${N}"
+        printf "  ${Y}⚠ Same value — no change.${N}\n"
         return 0
     fi
 
     BACKUP_MAX_KEEP="$NEW_MAX"
     _bk_save_conf
-    echo -e "  ${G}✔${N} Max backups changed to: ${B}${BACKUP_MAX_KEEP}${N}"
+    printf "  ${G}✔${N} Max backups changed to: ${B}${BACKUP_MAX_KEEP}${N}\n"
     _backup_purge_old
 }
 
 _bk_change_interval() {
     echo ""
-    echo -e "  ${D}Current interval: every ${BACKUP_INTERVAL_DAYS} day(s)${N}"
+    printf "  ${D}Current interval: every ${BACKUP_INTERVAL_DAYS} day(s)${N}\n"
     echo ""
     local NEW_INT=""
     while true; do
-        echo -ne "  ${C}➜${N} New interval in days (1-365): "
+        printf "  ${C}➜${N} New interval in days (1-365): "
         read -r NEW_INT
         if [[ "$NEW_INT" =~ ^[1-9][0-9]*$ ]] && (( NEW_INT >= 1 && NEW_INT <= 365 )); then
             break
         fi
-        echo -e "  ${Y}⚠ Must be a positive integer between 1 and 365${N}"
+        printf "  ${Y}⚠ Must be a positive integer between 1 and 365${N}\n"
     done
 
     if [[ "$NEW_INT" == "$BACKUP_INTERVAL_DAYS" ]]; then
-        echo -e "  ${Y}⚠ Same value — no change.${N}"
+        printf "  ${Y}⚠ Same value — no change.${N}\n"
         return 0
     fi
 
     BACKUP_INTERVAL_DAYS="$NEW_INT"
     _bk_save_conf
-    echo -e "  ${G}✔${N} Backup interval changed to: every ${B}${BACKUP_INTERVAL_DAYS}${N} day(s)"
+    printf "  ${G}✔${N} Backup interval changed to: every ${B}${BACKUP_INTERVAL_DAYS}${N} day(s)\n"
 }
 
 _bk_disable_auto() {
     echo ""
-    echo -ne "  ${C}➜${N} Disable automatic backups? ${D}[y/N]${N}: "
+    printf "  ${C}➜${N} Disable automatic backups? ${D}[y/N]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-n}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
     rm -f /etc/cron.d/picoclaw-autobackup
     BACKUP_AUTO_ENABLED="false"
     _bk_save_conf
-    echo -e "  ${G}✔${N} Auto-backup disabled"
-    echo -e "  ${D}Manual backups still work: picoclaw backup${N}"
+    printf "  ${G}✔${N} Auto-backup disabled\n"
+    printf "  ${D}Manual backups still work: picoclaw backup${N}\n"
 }
 
 _bk_enable_auto() {
     echo ""
-    echo -e "  ${D}Current interval: every ${BACKUP_INTERVAL_DAYS} day(s)${N}"
+    printf "  ${D}Current interval: every ${BACKUP_INTERVAL_DAYS} day(s)${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} Enable automatic backups? ${D}[Y/n]${N}: "
+    printf "  ${C}➜${N} Enable automatic backups? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
@@ -5334,7 +5399,7 @@ ABEOF
     chmod 644 /etc/cron.d/picoclaw-autobackup
     BACKUP_AUTO_ENABLED="true"
     _bk_save_conf
-    echo -e "  ${G}✔${N} Auto-backup enabled: every ${B}${BACKUP_INTERVAL_DAYS}${N} day(s) at 03:00"
+    printf "  ${G}✔${N} Auto-backup enabled: every ${B}${BACKUP_INTERVAL_DAYS}${N} day(s) at 03:00\n"
 }
 
 _bk_purge_all() {
@@ -5342,38 +5407,38 @@ _bk_purge_all() {
     bk_count=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l) || true
 
     if [[ $bk_count -eq 0 ]]; then
-        echo -e "  ${D}No backups to purge.${N}"
+        printf "  ${D}No backups to purge.${N}\n"
         return 0
     fi
 
     echo ""
-    echo -e "  ${R}${B}  ⚠  WARNING: This will permanently delete ALL ${bk_count} backup(s)${N}"
+    printf "  ${R}${B}  ⚠  WARNING: This will permanently delete ALL ${bk_count} backup(s)${N}\n"
     echo ""
-    echo -e "  ${D}Backup directory: ${BACKUP_DIR}${N}"
+    printf "  ${D}Backup directory: ${BACKUP_DIR}${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} Type ${R}PURGE${N} to confirm (anything else cancels): "
+    printf "  ${C}➜${N} Type ${R}PURGE${N} to confirm (anything else cancels): "
     local CONFIRM=""
     read -r CONFIRM
 
     if [[ "$CONFIRM" != "PURGE" ]]; then
-        echo -e "  ${D}Cancelled — backups untouched.${N}"
+        printf "  ${D}Cancelled — backups untouched.${N}\n"
         return 0
     fi
 
     find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" -exec rm -rf {} + 2>/dev/null || true
     rm -f "${BACKUP_DIR}/.last_auto_backup"
     echo ""
-    echo -e "  ${G}✔${N} All ${bk_count} backup(s) permanently deleted"
+    printf "  ${G}✔${N} All ${bk_count} backup(s) permanently deleted\n"
 }
 
 _bk_save_conf() {
     cat > "$BACKUP_CONF" << BKCONF
 # PicoClaw Backup Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-BACKUP_DIR="${BACKUP_DIR}"
-BACKUP_MAX_KEEP="${BACKUP_MAX_KEEP}"
-BACKUP_INTERVAL_DAYS="${BACKUP_INTERVAL_DAYS}"
-BACKUP_AUTO_ENABLED="${BACKUP_AUTO_ENABLED}"
+BACKUP_DIR='${BACKUP_DIR}'
+BACKUP_MAX_KEEP='${BACKUP_MAX_KEEP}'
+BACKUP_INTERVAL_DAYS='${BACKUP_INTERVAL_DAYS}'
+BACKUP_AUTO_ENABLED='${BACKUP_AUTO_ENABLED}'
 BKCONF
 }
 
@@ -5390,8 +5455,8 @@ cmd_atlas() {
         status)   _atlas_status ;;
         "")       _atlas_status ;;
         *)
-            echo -e "  ${R}✘ Unknown atlas sub-command: ${subcmd}${N}"
-            echo -e "  ${D}Usage: picoclaw atlas [update|list|status]${N}"
+            printf "  ${R}✘ Unknown atlas sub-command: ${subcmd}${N}\n"
+            printf "  ${D}Usage: picoclaw atlas [update|list|status]${N}\n"
             exit 1
             ;;
     esac
@@ -5399,12 +5464,12 @@ cmd_atlas() {
 
 _atlas_status() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Atlas Skills${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Atlas Skills${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
-    echo -e "  Repository:  ${B}${ATLAS_REPO_URL}${N}"
-    echo -e "  Branch:      ${B}${ATLAS_BRANCH}${N}"
-    echo -e "  Skills dir:  ${B}${ATLAS_SKILLS}/${N}"
+    printf "  Repository:  ${B}${ATLAS_REPO_URL}${N}\n"
+    printf "  Branch:      ${B}${ATLAS_BRANCH}${N}\n"
+    printf "  Skills dir:  ${B}${ATLAS_SKILLS}/${N}\n"
 
     if [[ -f "$ATLAS_META" ]] && command -v jq &>/dev/null; then
         local installed_at="" skill_count=""
@@ -5413,11 +5478,11 @@ _atlas_status() {
         local last_updated=""
         last_updated=$(jq -r '.last_updated // "never"' "$ATLAS_META" 2>/dev/null) || true
 
-        echo -e "  Installed:   ${B}${installed_at}${N}"
-        echo -e "  Updated:     ${B}${last_updated}${N}"
-        echo -e "  Skills:      ${B}${skill_count}${N}"
+        printf "  Installed:   ${B}${installed_at}${N}\n"
+        printf "  Updated:     ${B}${last_updated}${N}\n"
+        printf "  Skills:      ${B}${skill_count}${N}\n"
     else
-        echo -e "  Metadata:    ${D}not found${N}"
+        printf "  Metadata:    ${D}not found${N}\n"
     fi
 
     echo ""
@@ -5427,51 +5492,49 @@ _atlas_status() {
         for sd in "${ATLAS_SKILLS}"/*/; do
             if [[ -f "${sd}SKILL.md" ]]; then
                 actual_count=$((actual_count + 1))
-                local sn=""
-                sn=$(basename "$sd")
+                local sn="${sd%/}"
+                sn="${sn##*/}"
                 local sv="?"
                 if [[ -f "${sd}VERSION" ]]; then
-                    sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+                    sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+                    sv="${sv//[[:space:]]/}"
                 fi
-                local sc="?"
-                if [[ -f "${sd}.atlas-origin" ]]; then
-                    sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                        | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || sc="?"
-                fi
+                local sc=""
+                sc=$(_extract_atlas_category "${sd}.atlas-origin")
                 printf "    ${G}●${N} %-30s ${D}v%-8s %s${N}\n" "$sn" "$sv" "$sc"
             fi
         done
     fi
 
     if [[ $actual_count -eq 0 ]]; then
-        echo -e "  ${D}No Atlas skills installed.${N}"
-        echo -e "  ${D}Install with: picoclaw atlas update${N}"
+        printf "  ${D}No Atlas skills installed.${N}\n"
+        printf "  ${D}Install with: picoclaw atlas update${N}\n"
     fi
 
     echo ""
-    echo -e "  ${D}Commands:${N}"
-    echo -e "    ${C}picoclaw atlas${N}          show this status"
-    echo -e "    ${C}picoclaw atlas list${N}     list installed skills"
-    echo -e "    ${C}picoclaw atlas update${N}   update all skills from repository"
+    printf "  ${D}Commands:${N}\n"
+    printf "    ${C}picoclaw atlas${N}          show this status\n"
+    printf "    ${C}picoclaw atlas list${N}     list installed skills\n"
+    printf "    ${C}picoclaw atlas update${N}   update all skills from repository\n"
     echo ""
 }
 
 _atlas_list() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Atlas Skill List${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Atlas Skill List${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if [[ ! -d "$ATLAS_SKILLS" ]]; then
-        echo -e "  ${D}No skills directory found.${N}"
-        echo -e "  ${D}Install with: picoclaw atlas update${N}"
+        printf "  ${D}No skills directory found.${N}\n"
+        printf "  ${D}Install with: picoclaw atlas update${N}\n"
         echo ""
         return 0
     fi
 
     local count=0
     printf "    ${B}%-4s %-30s %-10s %-12s %-6s${N}\n" "#" "Skill" "Version" "Category" "Files"
-    echo -e "    ${D}──── ────────────────────────── ────────── ──────────── ──────${N}"
+    printf "    ${D}──── ────────────────────────── ────────── ──────────── ──────${N}\n"
 
     for sd in "${ATLAS_SKILLS}"/*/; do
         if [[ ! -f "${sd}SKILL.md" ]]; then
@@ -5479,39 +5542,44 @@ _atlas_list() {
         fi
         count=$((count + 1))
 
-        local sn=""
-        sn=$(basename "$sd")
+        local sn="${sd%/}"
+        sn="${sn##*/}"
         local sv="?"
         if [[ -f "${sd}VERSION" ]]; then
-            sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+            sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+            sv="${sv//[[:space:]]/}"
         fi
-        local sc="?"
-        if [[ -f "${sd}.atlas-origin" ]]; then
-            sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || sc="?"
-        fi
-        local fc=""
-        fc=$(find "$sd" -type f 2>/dev/null | wc -l) || fc="?"
+        local sc=""
+        sc=$(_extract_atlas_category "${sd}.atlas-origin")
+        local fc=0
+        shopt -s nullglob dotglob
+        local -a files=("$sd"/*)
+        for f in "${files[@]}"; do
+            if [[ -f "$f" ]]; then
+                fc=$((fc + 1))
+            fi
+        done
+        shopt -u nullglob dotglob
 
         printf "    ${C}%-4s${N} %-30s %-10s %-12s %-6s\n" "$count" "$sn" "$sv" "$sc" "$fc"
     done
 
     if [[ $count -eq 0 ]]; then
-        echo -e "    ${D}No skills with SKILL.md found.${N}"
+        printf "    ${D}No skills with SKILL.md found.${N}\n"
     fi
 
     echo ""
-    echo -e "  ${D}Total: ${count} skill(s) in ${ATLAS_SKILLS}/${N}"
-    echo -e "  ${D}Update: picoclaw atlas update${N}"
+    printf "  ${D}Total: ${count} skill(s) in ${ATLAS_SKILLS}/${N}\n"
+    printf "  ${D}Update: picoclaw atlas update${N}\n"
     echo ""
 }
 
 _atlas_update() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Atlas Update${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Atlas Update${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
-    echo -e "  ${D}Fetching latest skills from ${ATLAS_REPO_URL}...${N}"
+    printf "  ${D}Fetching latest skills from ${ATLAS_REPO_URL}...${N}\n"
     echo ""
 
     local tree_json=""
@@ -5520,7 +5588,7 @@ _atlas_update() {
         "$ATLAS_API_TREE" 2>/dev/null) || true
 
     if [[ -z "$tree_json" ]]; then
-        echo -e "  ${Y}⚠${N} GitHub API unreachable — trying git clone..."
+        printf "  ${Y}⚠${N} GitHub API unreachable — trying git clone...\n"
         _atlas_update_via_git
         return 0
     fi
@@ -5528,7 +5596,7 @@ _atlas_update() {
     local is_truncated=""
     is_truncated=$(printf '%s' "$tree_json" | jq -r '.truncated // false' 2>/dev/null) || true
     if [[ "$is_truncated" == "true" ]]; then
-        echo -e "  ${Y}⚠${N} Tree too large for API — trying git clone..."
+        printf "  ${Y}⚠${N} Tree too large for API — trying git clone...\n"
         _atlas_update_via_git
         return 0
     fi
@@ -5539,7 +5607,7 @@ _atlas_update() {
         2>/dev/null) || true
 
     if [[ -z "$skillmd_paths" ]]; then
-        echo -e "  ${Y}⚠ No skills found in repository${N}"
+        printf "  ${Y}⚠ No skills found in repository${N}\n"
         echo ""
         return 0
     fi
@@ -5588,7 +5656,7 @@ _atlas_update() {
         for fpath in "${file_paths[@]}"; do
             local rel_path="${fpath#${skill_dir_path}/}"
             local target_file="${target_dir}/${rel_path}"
-            mkdir -p "$(dirname "$target_file")"
+            mkdir -p "${target_file%/*}"
 
             if curl -sf --connect-timeout 10 --max-time 30 \
                 -o "$target_file" "${ATLAS_RAW_BASE}/${fpath}" 2>/dev/null; then
@@ -5600,14 +5668,14 @@ _atlas_update() {
 
         if [[ -f "${target_dir}/SKILL.md" ]]; then
             if [[ "$is_new" == "true" ]]; then
-                echo -e "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}"
+                printf '%s\n' "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}"
                 installed=$((installed + 1))
             else
-                echo -e "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}"
+                printf '%s\n' "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${dl_ok} files)${N}"
                 updated=$((updated + 1))
             fi
         else
-            echo -e "  ${R}✘${N} ${R}FAILED${N}  ${B}${s_name}${N} ${D}(SKILL.md missing)${N}"
+            printf '%s\n' "  ${R}✘${N} ${R}FAILED${N}  ${B}${s_name}${N} ${D}(SKILL.md missing)${N}"
             failed=$((failed + 1))
         fi
     done <<< "$skillmd_paths"
@@ -5616,15 +5684,15 @@ _atlas_update() {
     _atlas_update_metadata "$total"
 
     echo ""
-    echo -e "  ${G}${B}Update complete${N}"
+    printf "  ${G}${B}Update complete${N}\n"
     if [[ $installed -gt 0 ]]; then
-        echo -e "    New:     ${G}${installed}${N}"
+        printf "    New:     ${G}${installed}${N}\n"
     fi
     if [[ $updated -gt 0 ]]; then
-        echo -e "    Updated: ${C}${updated}${N}"
+        printf "    Updated: ${C}${updated}${N}\n"
     fi
     if [[ $failed -gt 0 ]]; then
-        echo -e "    Failed:  ${R}${failed}${N}"
+        printf "    Failed:  ${R}${failed}${N}\n"
     fi
     echo ""
 }
@@ -5634,13 +5702,13 @@ _atlas_update_via_git() {
     rm -rf "$tmp_dir"
 
     if ! git clone -q --depth 1 -b "$ATLAS_BRANCH" "${ATLAS_REPO_URL}.git" "$tmp_dir" 2>/dev/null; then
-        echo -e "  ${R}✘ Failed to clone Atlas repository${N}"
+        printf "  ${R}✘ Failed to clone Atlas repository${N}\n"
         echo ""
         return 0
     fi
 
     if [[ ! -d "${tmp_dir}/skills" ]]; then
-        echo -e "  ${Y}⚠ No skills/ directory in repository${N}"
+        printf "  ${Y}⚠ No skills/ directory in repository${N}\n"
         rm -rf "$tmp_dir"
         echo ""
         return 0
@@ -5654,10 +5722,10 @@ _atlas_update_via_git() {
         for skill_dir in "${category_dir}"*/; do
             if [[ ! -d "$skill_dir" || ! -f "${skill_dir}SKILL.md" ]]; then continue; fi
 
-            local s_name
-            s_name=$(basename "$skill_dir")
-            local s_cat
-            s_cat=$(basename "$category_dir")
+            local s_name="${skill_dir%/}"
+            s_name="${s_name##*/}"
+            local s_cat="${category_dir%/}"
+            s_cat="${s_cat##*/}"
             local target_dir="${ATLAS_SKILLS}/${s_name}"
 
             local is_new=true
@@ -5669,14 +5737,21 @@ _atlas_update_via_git() {
             cp -a "${skill_dir}"* "$target_dir/" 2>/dev/null || true
             cp -a "${skill_dir}".* "$target_dir/" 2>/dev/null || true
 
-            local fc=""
-            fc=$(find "$target_dir" -type f 2>/dev/null | wc -l) || fc="?"
+            local fc=0
+            shopt -s nullglob dotglob
+            local -a files=("$target_dir"/*)
+            for f in "${files[@]}"; do
+                if [[ -f "$f" ]]; then
+                    fc=$((fc + 1))
+                fi
+            done
+            shopt -u nullglob dotglob
 
             if [[ "$is_new" == "true" ]]; then
-                echo -e "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
+                printf '%s\n' "  ${G}✔${N} ${G}NEW${N}     ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
                 installed=$((installed + 1))
             else
-                echo -e "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
+                printf '%s\n' "  ${G}✔${N} ${C}UPDATED${N} ${B}${s_name}${N} ${D}(${s_cat}, ${fc} files)${N}"
                 updated=$((updated + 1))
             fi
         done
@@ -5688,9 +5763,9 @@ _atlas_update_via_git() {
     _atlas_update_metadata "$total"
 
     echo ""
-    echo -e "  ${G}${B}Update complete (via git clone)${N}"
-    if [[ $installed -gt 0 ]]; then echo -e "    New:     ${G}${installed}${N}"; fi
-    if [[ $updated -gt 0 ]]; then echo -e "    Updated: ${C}${updated}${N}"; fi
+    printf "  ${G}${B}Update complete (via git clone)${N}\n"
+    if [[ $installed -gt 0 ]]; then printf "    New:     ${G}${installed}${N}\n"; fi
+    if [[ $updated -gt 0 ]]; then printf "    Updated: ${C}${updated}${N}\n"; fi
     echo ""
 }
 
@@ -5700,17 +5775,15 @@ _atlas_update_metadata() {
     local first=true
     for sd in "${ATLAS_SKILLS}"/*/; do
         if [[ ! -f "${sd}SKILL.md" ]]; then continue; fi
-        local sn=""
-        sn=$(basename "$sd")
+        local sn="${sd%/}"
+        sn="${sn##*/}"
         local sv="unknown"
         if [[ -f "${sd}VERSION" ]]; then
-            sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="unknown"
+            sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="unknown"
+            sv="${sv//[[:space:]]/}"
         fi
-        local sc="unknown"
-        if [[ -f "${sd}.atlas-origin" ]]; then
-            sc=$(grep -E "^category:" "${sd}.atlas-origin" 2>/dev/null \
-                | sed 's/^category:[[:space:]]*//' | tr -d '[:space:]') || sc="unknown"
-        fi
+        local sc=""
+        sc=$(_extract_atlas_category "${sd}.atlas-origin")
         if [[ "$first" == "true" ]]; then first=false; else skills_json+=","; fi
         skills_json+="{\"name\":\"$(_json_escape "$sn")\",\"category\":\"$(_json_escape "$sc")\",\"version\":\"$(_json_escape "$sv")\",\"path\":\"$(_json_escape "${ATLAS_SKILLS}/${sn}")\"}"
     done
@@ -5761,8 +5834,8 @@ cmd_ftp() {
         enable)   _ftp_enable ;;
         "")       _ftp_interactive ;;
         *)
-            echo -e "  ${R}✘ Unknown ftp sub-command: ${subcmd}${N}"
-            echo -e "  ${D}Usage: picoclaw ftp [status|start|stop|restart|password|port|tls|logs|disable|enable]${N}"
+            printf "  ${R}✘ Unknown ftp sub-command: ${subcmd}${N}\n"
+            printf "  ${D}Usage: picoclaw ftp [status|start|stop|restart|password|port|tls|logs|disable|enable]${N}\n"
             exit 1
             ;;
     esac
@@ -5772,13 +5845,13 @@ _ftp_interactive() {
     _load_ftp_conf
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — FTP Server Manager${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — FTP Server Manager${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if ! command -v vsftpd &>/dev/null; then
-        echo -e "  ${R}✘ vsftpd is not installed${N}"
-        echo -e "  ${D}Re-run the installer and select FTP server to install it.${N}"
+        printf "  ${R}✘ vsftpd is not installed${N}\n"
+        printf "  ${D}Re-run the installer and select FTP server to install it.${N}\n"
         echo ""
         return 0
     fi
@@ -5788,31 +5861,31 @@ _ftp_interactive() {
         ftp_pid=$(systemctl show vsftpd --property=MainPID --value 2>/dev/null) || true
         local ftp_since=""
         ftp_since=$(systemctl show vsftpd --property=ActiveEnterTimestamp --value 2>/dev/null) || true
-        echo -e "  Status:    ${G}● running${N}  PID ${ftp_pid}"
-        echo -e "  Since:     ${D}${ftp_since}${N}"
+        printf "  Status:    ${G}● running${N}  PID ${ftp_pid}\n"
+        printf "  Since:     ${D}${ftp_since}${N}\n"
     elif systemctl is-enabled --quiet vsftpd 2>/dev/null; then
-        echo -e "  Status:    ${R}● stopped${N} (enabled)"
+        printf "  Status:    ${R}● stopped${N} (enabled)\n"
     else
-        echo -e "  Status:    ${D}○ disabled${N}"
+        printf "  Status:    ${D}○ disabled${N}\n"
     fi
 
-    echo -e "  Username:  ${B}${FTP_USER}${N}"
-    echo -e "  Port:      ${B}${FTP_PORT}${N}"
-    echo -e "  Passive:   ${B}${FTP_PASV_MIN}-${FTP_PASV_MAX}${N}"
-    echo -e "  TLS:       $(if [[ "$FTP_TLS" == "true" ]]; then echo -e "${G}● enabled${N}"; else echo -e "${D}○ disabled${N}"; fi)"
-    echo -e "  Access:    ${R}Full filesystem (/)${N}"
-    echo -e "  Config:    ${D}/etc/vsftpd.conf${N}"
-    echo -e "  Logs:      ${D}/var/log/vsftpd.log${N}"
+    printf "  Username:  ${B}${FTP_USER}${N}\n"
+    printf "  Port:      ${B}${FTP_PORT}${N}\n"
+    printf "  Passive:   ${B}${FTP_PASV_MIN}-${FTP_PASV_MAX}${N}\n"
+    printf "  TLS:       $(if [[ "$FTP_TLS" == "true" ]]; then printf "${G}● enabled${N}"; else printf "${D}○ disabled${N}"; fi)\n"
+    printf "  Access:    ${R}Full filesystem (/)${N}\n"
+    printf "  Config:    ${D}/etc/vsftpd.conf${N}\n"
+    printf "  Logs:      ${D}/var/log/vsftpd.log${N}\n"
 
     local public_ip=""
     public_ip=$(curl -sf --connect-timeout 3 --max-time 5 https://api.ipify.org 2>/dev/null) || true
     if [[ -z "$public_ip" ]]; then
         public_ip=$(hostname -I 2>/dev/null | awk '{print $1}') || public_ip="?"
     fi
-    echo -e "  Connect:   ${C}ftp://${FTP_USER}@${public_ip}:${FTP_PORT}${N}"
+    printf "  Connect:   ${C}ftp://${FTP_USER}@${public_ip}:${FTP_PORT}${N}\n"
 
     echo ""
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     local is_running=false
@@ -5825,36 +5898,36 @@ _ftp_interactive() {
     fi
 
     if [[ "$is_running" == "true" ]]; then
-        echo -e "    ${C}1${N}) Stop FTP server"
-        echo -e "    ${C}2${N}) Restart FTP server"
+        printf "    ${C}1${N}) Stop FTP server\n"
+        printf "    ${C}2${N}) Restart FTP server\n"
     else
-        echo -e "    ${C}1${N}) Start FTP server"
-        echo -e "    ${C}2${N}) ${D}(server not running)${N}"
+        printf "    ${C}1${N}) Start FTP server\n"
+        printf "    ${C}2${N}) ${D}(server not running)${N}\n"
     fi
-    echo -e "    ${C}3${N}) Change password"
-    echo -e "    ${C}4${N}) Change port"
-    echo -e "    ${C}5${N}) Toggle TLS $(if [[ "$FTP_TLS" == "true" ]]; then echo "(currently ON → turn OFF)"; else echo "(currently OFF → turn ON)"; fi)"
-    echo -e "    ${C}6${N}) View logs"
+    printf "    ${C}3${N}) Change password\n"
+    printf "    ${C}4${N}) Change port\n"
+    printf "    ${C}5${N}) Toggle TLS $(if [[ "$FTP_TLS" == "true" ]]; then echo "(currently ON → turn OFF)"; else echo "(currently OFF → turn ON)"; fi)\n"
+    printf "    ${C}6${N}) View logs\n"
     if [[ "$is_enabled" == "true" ]]; then
-        echo -e "    ${C}7${N}) Disable FTP server  ${R}(stop + prevent auto-start)${N}"
+        printf "    ${C}7${N}) Disable FTP server  ${R}(stop + prevent auto-start)${N}\n"
     else
-        echo -e "    ${C}7${N}) Enable FTP server  ${G}(enable + start)${N}"
+        printf "    ${C}7${N}) Enable FTP server  ${G}(enable + start)${N}\n"
     fi
-    echo -e "    ${C}0${N}) Back ${D}(cancel)${N}"
+    printf "    ${C}0${N}) Back ${D}(cancel)${N}\n"
     echo ""
 
     local MENU_CHOICE=""
     while true; do
-        echo -ne "  ${C}➜${N} Choose (0-7): "
+        printf "  ${C}➜${N} Choose (0-7): "
         read -r MENU_CHOICE
         if [[ "$MENU_CHOICE" =~ ^[0-7]$ ]]; then
             break
         fi
-        echo -e "  ${Y}⚠ Invalid — enter 0-7${N}"
+        printf "  ${Y}⚠ Invalid — enter 0-7${N}\n"
     done
 
     case "$MENU_CHOICE" in
-        0) echo -e "  ${D}No changes.${N}"; echo ""; return 0 ;;
+        0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
         1)
             if [[ "$is_running" == "true" ]]; then
                 _ftp_stop
@@ -5866,7 +5939,7 @@ _ftp_interactive() {
             if [[ "$is_running" == "true" ]]; then
                 _ftp_restart
             else
-                echo -e "  ${Y}⚠ Server not running — starting instead...${N}"
+                printf "  ${Y}⚠ Server not running — starting instead...${N}\n"
                 _ftp_start
             fi
             ;;
@@ -5885,16 +5958,254 @@ _ftp_interactive() {
     echo ""
 }
 
-_ftp_status() { _load_ftp_conf; echo ""; echo -e "${M}${B}  🦞 PicoClaw — FTP Status${N}"; echo -e "${D}  ─────────────────────────────────────────────${N}"; echo ""; if ! command -v vsftpd &>/dev/null; then echo -e "  ${R}✘ vsftpd is not installed${N}"; echo ""; return 0; fi; if systemctl is-active --quiet vsftpd 2>/dev/null; then local ftp_pid=""; ftp_pid=$(systemctl show vsftpd --property=MainPID --value 2>/dev/null) || true; local ftp_since=""; ftp_since=$(systemctl show vsftpd --property=ActiveEnterTimestamp --value 2>/dev/null) || true; echo -e "  Status:    ${G}● running${N}  PID ${ftp_pid}  since ${ftp_since}"; elif systemctl is-enabled --quiet vsftpd 2>/dev/null; then echo -e "  Status:    ${R}● stopped${N} (enabled — run: picoclaw ftp start)"; else echo -e "  Status:    ${D}○ disabled${N}"; fi; echo -e "  Username:  ${B}${FTP_USER}${N}"; echo -e "  Port:      ${B}${FTP_PORT}${N}"; echo -e "  Passive:   ${B}${FTP_PASV_MIN}-${FTP_PASV_MAX}${N}"; echo -e "  TLS:       $(if [[ "$FTP_TLS" == "true" ]]; then echo -e "${G}● enabled${N}"; else echo -e "${D}○ disabled${N}"; fi)"; echo -e "  Access:    ${R}Full filesystem (/)${N}"; echo ""; }
-_ftp_start() { echo ""; echo -e "  ${M}🦞${N} Starting FTP server..."; systemctl start vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server running"; else echo -e "  ${R}✘${N} Failed to start — check: systemctl status vsftpd"; fi; }
-_ftp_stop() { echo ""; echo -e "  ${M}🦞${N} Stopping FTP server..."; systemctl stop vsftpd 2>/dev/null || true; echo -e "  ${G}✔${N} FTP server stopped"; }
-_ftp_restart() { echo ""; echo -e "  ${M}🦞${N} Restarting FTP server..."; systemctl restart vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server running"; else echo -e "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd"; fi; }
-_ftp_password() { _load_ftp_conf; echo ""; echo -e "  ${B}Change FTP Password${N}"; echo -e "  ${D}User: ${FTP_USER}${N}"; echo ""; local NEW_PASS=""; while true; do echo -ne "  ${C}➜${N} New password (min 8 chars, hidden): "; read -rs NEW_PASS; echo ""; if [[ ${#NEW_PASS} -ge 8 ]]; then break; fi; echo -e "  ${Y}⚠ Password must be at least 8 characters${N}"; done; local CONFIRM_PASS=""; echo -ne "  ${C}➜${N} Confirm password: "; read -rs CONFIRM_PASS; echo ""; if [[ "$NEW_PASS" != "$CONFIRM_PASS" ]]; then echo -e "  ${R}✘ Passwords do not match — cancelled${N}"; return 0; fi; echo "${FTP_USER}:${NEW_PASS}" | chpasswd 2>/dev/null; if [[ $? -eq 0 ]]; then echo -e "  ${G}✔${N} Password changed for user '${FTP_USER}'"; else echo -e "  ${R}✘ Failed to change password${N}"; fi; }
-_ftp_port() { _load_ftp_conf; echo ""; echo -e "  ${B}Change FTP Port${N}"; echo -e "  ${D}Current port: ${FTP_PORT}${N}"; echo ""; local NEW_PORT=""; while true; do echo -ne "  ${C}➜${N} New port (1-65535): "; read -r NEW_PORT; if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && (( NEW_PORT >= 1 && NEW_PORT <= 65535 )); then break; fi; echo -e "  ${Y}⚠ Must be a number between 1 and 65535${N}"; done; if [[ "$NEW_PORT" == "$FTP_PORT" ]]; then echo -e "  ${Y}⚠ Same port — no change.${N}"; return 0; fi; if [[ -f /etc/vsftpd.conf ]]; then sed -i "s/^listen_port=.*/listen_port=${NEW_PORT}/" /etc/vsftpd.conf 2>/dev/null || true; fi; FTP_PORT="$NEW_PORT"; _save_ftp_conf; echo -e "  ${G}✔${N} FTP port changed to: ${B}${NEW_PORT}${N}"; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo ""; echo -ne "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-y}"; if [[ "${CONFIRM,,}" == "y" || "${CONFIRM,,}" == "yes" ]]; then systemctl restart vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server restarted on port ${NEW_PORT}"; else echo -e "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd"; fi; else echo -e "  ${D}Restart later with: picoclaw ftp restart${N}"; fi; fi; }
-_ftp_tls() { _load_ftp_conf; echo ""; if [[ "$FTP_TLS" == "true" ]]; then echo -e "  ${B}Disable TLS Encryption${N}"; echo -ne "  ${C}➜${N} Disable TLS? ${D}[y/N]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-n}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled — TLS remains enabled.${N}"; return 0; fi; if [[ -f /etc/vsftpd.conf ]]; then sed -i '/^ssl_enable=/s/.*/ssl_enable=NO/' /etc/vsftpd.conf 2>/dev/null || true; fi; FTP_TLS="false"; _save_ftp_conf; echo -e "  ${G}✔${N} TLS disabled"; else echo -e "  ${B}Enable TLS Encryption${N}"; if [[ ! -f /etc/ssl/private/vsftpd.pem ]]; then mkdir -p /etc/ssl/private; openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/ssl/private/vsftpd.key -out /etc/ssl/private/vsftpd.pem -subj "/C=US/ST=State/L=City/O=PicoClaw/OU=FTP/CN=$(hostname 2>/dev/null || echo 'picoclaw')" > /dev/null 2>&1 || true; chmod 600 /etc/ssl/private/vsftpd.key /etc/ssl/private/vsftpd.pem; fi; echo -ne "  ${C}➜${N} Enable TLS? ${D}[Y/n]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-y}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; if [[ -f /etc/vsftpd.conf ]]; then if grep -q "^ssl_enable=" /etc/vsftpd.conf 2>/dev/null; then sed -i '/^ssl_enable=/s/.*/ssl_enable=YES/' /etc/vsftpd.conf 2>/dev/null || true; else echo -e "\nssl_enable=YES\nrsa_cert_file=/etc/ssl/private/vsftpd.pem\nrsa_private_key_file=/etc/ssl/private/vsftpd.key\nssl_ciphers=HIGH\nrequire_ssl_reuse=NO" >> /etc/vsftpd.conf; fi; fi; FTP_TLS="true"; _save_ftp_conf; echo -e "  ${G}✔${N} TLS enabled"; fi; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo ""; echo -ne "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "; local DO_RESTART=""; read -r DO_RESTART; DO_RESTART="${DO_RESTART:-y}"; if [[ "${DO_RESTART,,}" == "y" || "${DO_RESTART,,}" == "yes" ]]; then systemctl restart vsftpd 2>/dev/null || true; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server restarted"; else echo -e "  ${R}✘${N} Failed to restart"; fi; fi; fi; }
-_ftp_logs() { echo ""; echo -e "  ${M}🦞${N} FTP Server Logs"; echo -e "  ${D}Showing last 50 lines of /var/log/vsftpd.log${N}"; echo ""; if [[ -f /var/log/vsftpd.log ]]; then tail -50 /var/log/vsftpd.log; else echo -e "  ${D}No log file found${N}"; fi; }
-_ftp_disable() { echo ""; echo -ne "  ${C}➜${N} Disable FTP server? ${D}[y/N]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-n}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; systemctl stop vsftpd 2>/dev/null || true; systemctl disable vsftpd 2>/dev/null || true; _load_ftp_conf; FTP_ENABLED="false"; _save_ftp_conf; echo -e "  ${G}✔${N} FTP server disabled"; }
-_ftp_enable() { _load_ftp_conf; if ! command -v vsftpd &>/dev/null; then echo -e "  ${R}✘ vsftpd is not installed${N}"; return 0; fi; echo ""; echo -ne "  ${C}➜${N} Enable and start FTP server? ${D}[Y/n]${N}: "; local CONFIRM=""; read -r CONFIRM; CONFIRM="${CONFIRM:-y}"; if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; systemctl enable vsftpd 2>/dev/null || true; systemctl start vsftpd 2>/dev/null || true; FTP_ENABLED="true"; _save_ftp_conf; sleep 1; if systemctl is-active --quiet vsftpd 2>/dev/null; then echo -e "  ${G}✔${N} FTP server enabled and running"; else echo -e "  ${R}✘${N} Failed to start"; fi; }
+_ftp_status() {
+  _load_ftp_conf
+  echo ""
+  printf "${M}${B}  🦞 PicoClaw — FTP Status${N}\n"
+  printf "${D}  ─────────────────────────────────────────────${N}\n"
+  echo ""
+  if ! command -v vsftpd &>/dev/null; then
+    printf "  ${R}✘ vsftpd is not installed${N}\n"
+    echo ""
+    return 0
+  fi
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    local ftp_pid=""
+    ftp_pid=$(systemctl show vsftpd --property=MainPID --value 2>/dev/null) || true
+    local ftp_since=""
+    ftp_since=$(systemctl show vsftpd --property=ActiveEnterTimestamp --value 2>/dev/null) || true
+    printf "  Status:    ${G}● running${N}  PID ${ftp_pid}  since ${ftp_since}\n"
+  elif systemctl is-enabled --quiet vsftpd 2>/dev/null; then
+    printf "  Status:    ${R}● stopped${N} (enabled — run: picoclaw ftp start)\n"
+  else
+    printf "  Status:    ${D}○ disabled${N}\n"
+  fi
+  printf "  Username:  ${B}${FTP_USER}${N}\n"
+  printf "  Port:      ${B}${FTP_PORT}${N}\n"
+  printf "  Passive:   ${B}${FTP_PASV_MIN}-${FTP_PASV_MAX}${N}\n"
+  printf "  TLS:       $(if [[ "$FTP_TLS" == "true" ]]; then printf "${G}● enabled${N}"; else printf "${D}○ disabled${N}"; fi)\n"
+  printf "  Access:    ${R}Full filesystem (/)${N}\n"
+  echo ""
+}
+_ftp_start() {
+  echo ""
+  printf "  ${M}🦞${N} Starting FTP server...\n"
+  systemctl start vsftpd 2>/dev/null || true
+  sleep 1
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    printf "  ${G}✔${N} FTP server running\n"
+  else
+    printf "  ${R}✘${N} Failed to start — check: systemctl status vsftpd\n"
+  fi
+}
+_ftp_stop() {
+  echo ""
+  printf "  ${M}🦞${N} Stopping FTP server...\n"
+  systemctl stop vsftpd 2>/dev/null || true
+  printf "  ${G}✔${N} FTP server stopped\n"
+}
+_ftp_restart() {
+  echo ""
+  printf "  ${M}🦞${N} Restarting FTP server...\n"
+  systemctl restart vsftpd 2>/dev/null || true
+  sleep 1
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    printf "  ${G}✔${N} FTP server running\n"
+  else
+    printf "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd\n"
+  fi
+}
+_ftp_password() {
+  _load_ftp_conf
+  echo ""
+  printf "  ${B}Change FTP Password${N}\n"
+  printf "  ${D}User: ${FTP_USER}${N}\n"
+  echo ""
+  local NEW_PASS=""
+  while true; do
+    printf "  ${C}➜${N} New password (min 8 chars, hidden): "
+    read -rs NEW_PASS
+    echo ""
+    if [[ ${#NEW_PASS} -ge 8 ]]; then
+      break
+    fi
+    printf "  ${Y}⚠ Password must be at least 8 characters${N}\n"
+  done
+  local CONFIRM_PASS=""
+  printf "  ${C}➜${N} Confirm password: "
+  read -rs CONFIRM_PASS
+  echo ""
+  if [[ "$NEW_PASS" != "$CONFIRM_PASS" ]]; then
+    printf "  ${R}✘ Passwords do not match — cancelled${N}\n"
+    return 0
+  fi
+  echo "${FTP_USER}:${NEW_PASS}" | chpasswd 2>/dev/null
+  if [[ $? -eq 0 ]]; then
+    printf "  ${G}✔${N} Password changed for user '${FTP_USER}'\n"
+  else
+    printf "  ${R}✘ Failed to change password${N}\n"
+  fi
+}
+_ftp_port() {
+  _load_ftp_conf
+  echo ""
+  printf "  ${B}Change FTP Port${N}\n"
+  printf "  ${D}Current port: ${FTP_PORT}${N}\n"
+  echo ""
+  local NEW_PORT=""
+  while true; do
+    printf "  ${C}➜${N} New port (1-65535): "
+    read -r NEW_PORT
+    if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && (( NEW_PORT >= 1 && NEW_PORT <= 65535 )); then
+      break
+    fi
+    printf "  ${Y}⚠ Must be a number between 1 and 65535${N}\n"
+  done
+  if [[ "$NEW_PORT" == "$FTP_PORT" ]]; then
+    printf "  ${Y}⚠ Same port — no change.${N}\n"
+    return 0
+  fi
+  if [[ -f /etc/vsftpd.conf ]]; then
+    sed -i "s/^listen_port=.*/listen_port=${NEW_PORT}/" /etc/vsftpd.conf 2>/dev/null || true
+  fi
+  FTP_PORT="$NEW_PORT"
+  _save_ftp_conf
+  printf "  ${G}✔${N} FTP port changed to: ${B}${NEW_PORT}${N}\n"
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo ""
+    printf "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "
+    local CONFIRM=""
+    read -r CONFIRM
+    CONFIRM="${CONFIRM:-y}"
+    if [[ "${CONFIRM,,}" == "y" || "${CONFIRM,,}" == "yes" ]]; then
+      systemctl restart vsftpd 2>/dev/null || true
+      sleep 1
+      if systemctl is-active --quiet vsftpd 2>/dev/null; then
+        printf "  ${G}✔${N} FTP server restarted on port ${NEW_PORT}\n"
+      else
+        printf "  ${R}✘${N} Failed to restart — check: systemctl status vsftpd\n"
+      fi
+    else
+      printf "  ${D}Restart later with: picoclaw ftp restart${N}\n"
+    fi
+  fi
+}
+_ftp_tls() {
+  _load_ftp_conf
+  echo ""
+  if [[ "$FTP_TLS" == "true" ]]; then
+    printf "  ${B}Disable TLS Encryption${N}\n"
+    printf "  ${C}➜${N} Disable TLS? ${D}[y/N]${N}: "
+    local CONFIRM=""
+    read -r CONFIRM
+    CONFIRM="${CONFIRM:-n}"
+    if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+      printf "  ${D}Cancelled — TLS remains enabled.${N}\n"
+      return 0
+    fi
+    if [[ -f /etc/vsftpd.conf ]]; then
+      sed -i '/^ssl_enable=/s/.*/ssl_enable=NO/' /etc/vsftpd.conf 2>/dev/null || true
+    fi
+    FTP_TLS="false"
+    _save_ftp_conf
+    printf "  ${G}✔${N} TLS disabled\n"
+  else
+    printf "  ${B}Enable TLS Encryption${N}\n"
+    if [[ ! -f /etc/ssl/private/vsftpd.pem ]]; then
+      mkdir -p /etc/ssl/private
+      openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/ssl/private/vsftpd.key -out /etc/ssl/private/vsftpd.pem -subj "/C=US/ST=State/L=City/O=PicoClaw/OU=FTP/CN=$(hostname 2>/dev/null || echo 'picoclaw')" > /dev/null 2>&1 || true
+      chmod 600 /etc/ssl/private/vsftpd.key /etc/ssl/private/vsftpd.pem
+    fi
+    printf "  ${C}➜${N} Enable TLS? ${D}[Y/n]${N}: "
+    local CONFIRM=""
+    read -r CONFIRM
+    CONFIRM="${CONFIRM:-y}"
+    if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+      printf "  ${D}Cancelled.${N}\n"
+      return 0
+    fi
+    if [[ -f /etc/vsftpd.conf ]]; then
+      if grep -q "^ssl_enable=" /etc/vsftpd.conf 2>/dev/null; then
+        sed -i '/^ssl_enable=/s/.*/ssl_enable=YES/' /etc/vsftpd.conf 2>/dev/null || true
+      else
+        printf "\nssl_enable=YES\nrsa_cert_file=/etc/ssl/private/vsftpd.pem\nrsa_private_key_file=/etc/ssl/private/vsftpd.key\nssl_ciphers=HIGH\nrequire_ssl_reuse=NO\n" >> /etc/vsftpd.conf
+      fi
+    fi
+    FTP_TLS="true"
+    _save_ftp_conf
+    printf "  ${G}✔${N} TLS enabled\n"
+  fi
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    echo ""
+    printf "  ${C}➜${N} Restart FTP server to apply? ${D}[Y/n]${N}: "
+    local DO_RESTART=""
+    read -r DO_RESTART
+    DO_RESTART="${DO_RESTART:-y}"
+    if [[ "${DO_RESTART,,}" == "y" || "${DO_RESTART,,}" == "yes" ]]; then
+      systemctl restart vsftpd 2>/dev/null || true
+      sleep 1
+      if systemctl is-active --quiet vsftpd 2>/dev/null; then
+        printf "  ${G}✔${N} FTP server restarted\n"
+      else
+        printf "  ${R}✘${N} Failed to restart\n"
+      fi
+    fi
+  fi
+}
+_ftp_logs() {
+  echo ""
+  printf "  ${M}🦞${N} FTP Server Logs\n"
+  printf "  ${D}Showing last 50 lines of /var/log/vsftpd.log${N}\n"
+  echo ""
+  if [[ -f /var/log/vsftpd.log ]]; then
+    tail -50 /var/log/vsftpd.log
+  else
+    printf "  ${D}No log file found${N}\n"
+  fi
+}
+_ftp_disable() {
+  echo ""
+  printf "  ${C}➜${N} Disable FTP server? ${D}[y/N]${N}: "
+  local CONFIRM=""
+  read -r CONFIRM
+  CONFIRM="${CONFIRM:-n}"
+  if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+    printf "  ${D}Cancelled.${N}\n"
+    return 0
+  fi
+  systemctl stop vsftpd 2>/dev/null || true
+  systemctl disable vsftpd 2>/dev/null || true
+  _load_ftp_conf
+  FTP_ENABLED="false"
+  _save_ftp_conf
+  printf "  ${G}✔${N} FTP server disabled\n"
+}
+_ftp_enable() {
+  _load_ftp_conf
+  if ! command -v vsftpd &>/dev/null; then
+    printf "  ${R}✘ vsftpd is not installed${N}\n"
+    return 0
+  fi
+  echo ""
+  printf "  ${C}➜${N} Enable and start FTP server? ${D}[Y/n]${N}: "
+  local CONFIRM=""
+  read -r CONFIRM
+  CONFIRM="${CONFIRM:-y}"
+  if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+    printf "  ${D}Cancelled.${N}\n"
+    return 0
+  fi
+  systemctl enable vsftpd 2>/dev/null || true
+  systemctl start vsftpd 2>/dev/null || true
+  FTP_ENABLED="true"
+  _save_ftp_conf
+  sleep 1
+  if systemctl is-active --quiet vsftpd 2>/dev/null; then
+    printf "  ${G}✔${N} FTP server enabled and running\n"
+  else
+    printf "  ${R}✘${N} Failed to start\n"
+  fi
+}
 
 # ═══════════════════════════════════════════════════════
 # WHATSAPP BRIDGE MANAGER — picoclaw whatsapp
@@ -5914,20 +6225,233 @@ cmd_whatsapp() {
         enable)   _wa_enable ;;
         disable)  _wa_disable ;;
         "")       _wa_interactive ;;
-        *)  echo -e "  ${R}✘ Unknown whatsapp sub-command: ${subcmd}${N}"; exit 1 ;;
+        *)  printf "  ${R}✘ Unknown whatsapp sub-command: ${subcmd}${N}\n"; exit 1 ;;
     esac
 }
 
-_wa_interactive() { _load_wa_conf; echo ""; echo -e "${M}${B}  🦞 PicoClaw — WhatsApp Bridge Manager${N}"; echo -e "${D}  ─────────────────────────────────────────────${N}"; echo ""; if [[ ! -d "$WA_BRIDGE_DIR" ]]; then echo -e "  ${R}✘ WhatsApp bridge is not installed${N}"; echo ""; return 0; fi; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  Status:    ${G}● running${N}"; else echo -e "  Status:    ${R}● stopped${N}"; fi; if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then echo -e "  Account:   ${G}● linked${N}"; else echo -e "  Account:   ${R}● not linked${N}"; fi; echo -e "  Port:      ${B}${WA_BRIDGE_PORT}${N}"; echo ""; echo -e "    ${C}1${N}) Login (QR scan)"; echo -e "    ${C}2${N}) Start/Stop bridge"; echo -e "    ${C}3${N}) Restart bridge"; echo -e "    ${C}4${N}) Logout"; echo -e "    ${C}5${N}) View logs"; echo -e "    ${C}6${N}) Enable/Disable"; echo -e "    ${C}0${N}) Back"; echo ""; local MC=""; while true; do echo -ne "  ${C}➜${N} Choose (0-6): "; read -r MC; if [[ "$MC" =~ ^[0-6]$ ]]; then break; fi; echo -e "  ${Y}⚠ Invalid${N}"; done; case "$MC" in 0) return 0 ;; 1) _wa_login ;; 2) if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then _wa_stop; else _wa_start; fi ;; 3) _wa_restart ;; 4) _wa_logout ;; 5) _wa_logs ;; 6) local wa_cfg_en=""; if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then wa_cfg_en=$(jq -r '.channels.whatsapp.enabled // false' "$CFG" 2>/dev/null) || true; fi; if [[ "$wa_cfg_en" == "true" ]]; then _wa_disable; else _wa_enable; fi ;; esac; echo ""; }
-_wa_login() { _load_wa_conf; echo ""; if [[ ! -d "$WA_BRIDGE_DIR" || ! -f "${WA_BRIDGE_DIR}/dist/index.js" ]]; then echo -e "  ${R}✘ Bridge not installed or not compiled${N}"; return 0; fi; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 1; fi; echo -e "  ${M}🦞${N} Starting bridge for QR login..."; echo ""; cd "$WA_BRIDGE_DIR"; BRIDGE_PORT="$WA_BRIDGE_PORT" AUTH_DIR="$WA_BRIDGE_AUTH_DIR" node dist/index.js & local bp=$!; local wc=0 mw=120 ls=false; while (( wc < mw )); do if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then sleep 3; ls=true; break; fi; if ! kill -0 "$bp" 2>/dev/null; then break; fi; sleep 1; wc=$((wc+1)); done; if kill -0 "$bp" 2>/dev/null; then kill "$bp" 2>/dev/null || true; wait "$bp" 2>/dev/null || true; fi; cd /root; echo ""; if [[ "$ls" == "true" ]] || [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then echo -e "  ${G}✔${N} WhatsApp linked!"; systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 2; if systemctl is-active --quiet "$SVC" 2>/dev/null; then systemctl restart "$SVC" 2>/dev/null || true; fi; else echo -e "  ${Y}⚠${N} QR not scanned in time"; fi; echo ""; }
-_wa_logout() { _load_wa_conf; echo ""; echo -ne "  ${C}➜${N} Type ${R}LOGOUT${N} to confirm: "; local C=""; read -r C; if [[ "$C" != "LOGOUT" ]]; then echo -e "  ${D}Cancelled.${N}"; return 0; fi; systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; if [[ -d "$WA_BRIDGE_AUTH_DIR" ]]; then rm -rf "${WA_BRIDGE_AUTH_DIR:?}/"*; fi; echo -e "  ${G}✔${N} Logged out"; echo ""; }
-_wa_status() { _load_wa_conf; echo ""; echo -e "${M}${B}  🦞 WhatsApp Status${N}"; echo ""; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  Bridge: ${G}● running${N}"; else echo -e "  Bridge: ${R}● stopped${N}"; fi; if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then echo -e "  Account: ${G}● linked${N}"; else echo -e "  Account: ${R}● not linked${N}"; fi; echo -e "  Port: ${B}${WA_BRIDGE_PORT}${N}"; echo ""; }
-_wa_start() { echo ""; systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 2; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  ${G}✔${N} Bridge running"; else echo -e "  ${R}✘${N} Failed"; fi; }
-_wa_stop() { echo ""; systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; echo -e "  ${G}✔${N} Bridge stopped"; }
-_wa_restart() { echo ""; systemctl restart "$WA_BRIDGE_SVC" 2>/dev/null || true; sleep 2; if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then echo -e "  ${G}✔${N} Bridge running"; else echo -e "  ${R}✘${N} Failed"; fi; }
-_wa_logs() { exec journalctl -u "$WA_BRIDGE_SVC" -f; }
-_wa_enable() { _load_wa_conf; if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then local T=""; T=$(mktemp); if jq '.channels.whatsapp.enabled = true' "$CFG" > "$T" 2>/dev/null; then mv "$T" "$CFG"; fi; fi; WA_ENABLED="true"; _save_wa_conf; systemctl enable "$WA_BRIDGE_SVC" 2>/dev/null || true; systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true; echo -e "  ${G}✔${N} WhatsApp enabled"; if systemctl is-active --quiet "$SVC" 2>/dev/null; then systemctl restart "$SVC" 2>/dev/null || true; fi; }
-_wa_disable() { _load_wa_conf; if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then local T=""; T=$(mktemp); if jq '.channels.whatsapp.enabled = false' "$CFG" > "$T" 2>/dev/null; then mv "$T" "$CFG"; fi; fi; WA_ENABLED="false"; _save_wa_conf; systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true; systemctl disable "$WA_BRIDGE_SVC" 2>/dev/null || true; echo -e "  ${G}✔${N} WhatsApp disabled"; if systemctl is-active --quiet "$SVC" 2>/dev/null; then systemctl restart "$SVC" 2>/dev/null || true; fi; }
+_wa_interactive() {
+  _load_wa_conf
+  echo ""
+  printf "${M}${B}  🦞 PicoClaw — WhatsApp Bridge Manager${N}\n"
+  printf "${D}  ─────────────────────────────────────────────${N}\n"
+  echo ""
+  if [[ ! -d "$WA_BRIDGE_DIR" ]]; then
+    printf "  ${R}✘ WhatsApp bridge is not installed${N}\n"
+    echo ""
+    return 0
+  fi
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    printf "  Status:    ${G}● running${N}\n"
+  else
+    printf "  Status:    ${R}● stopped${N}\n"
+  fi
+  if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+    printf "  Account:   ${G}● linked${N}\n"
+  else
+    printf "  Account:   ${R}● not linked${N}\n"
+  fi
+  printf "  Port:      ${B}${WA_BRIDGE_PORT}${N}\n"
+  echo ""
+  printf "    ${C}1${N}) Login (QR scan)\n"
+  printf "    ${C}2${N}) Start/Stop bridge\n"
+  printf "    ${C}3${N}) Restart bridge\n"
+  printf "    ${C}4${N}) Logout\n"
+  printf "    ${C}5${N}) View logs\n"
+  printf "    ${C}6${N}) Enable/Disable\n"
+  printf "    ${C}0${N}) Back\n"
+  echo ""
+  local MC=""
+  while true; do
+    printf "  ${C}➜${N} Choose (0-6): "
+    read -r MC
+    if [[ "$MC" =~ ^[0-6]$ ]]; then
+      break
+    fi
+    printf "  ${Y}⚠ Invalid${N}\n"
+  done
+  case "$MC" in
+    0)
+      return 0
+      ;;
+    1)
+      _wa_login
+      ;;
+    2)
+      if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+        _wa_stop
+      else
+        _wa_start
+      fi
+      ;;
+    3)
+      _wa_restart
+      ;;
+    4)
+      _wa_logout
+      ;;
+    5)
+      _wa_logs
+      ;;
+    6)
+      local wa_cfg_en=""
+      if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
+        wa_cfg_en=$(jq -r '.channels.whatsapp.enabled // false' "$CFG" 2>/dev/null) || true
+      fi
+      if [[ "$wa_cfg_en" == "true" ]]; then
+        _wa_disable
+      else
+        _wa_enable
+      fi
+      ;;
+  esac
+  echo ""
+}
+_wa_login() {
+  _load_wa_conf
+  echo ""
+  if [[ ! -d "$WA_BRIDGE_DIR" || ! -f "${WA_BRIDGE_DIR}/dist/index.js" ]]; then
+    printf "  ${R}✘ Bridge not installed or not compiled${N}\n"
+    return 0
+  fi
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+    sleep 1
+  fi
+  printf "  ${M}🦞${N} Starting bridge for QR login...\n"
+  echo ""
+  cd "$WA_BRIDGE_DIR"
+  BRIDGE_PORT="$WA_BRIDGE_PORT" AUTH_DIR="$WA_BRIDGE_AUTH_DIR" node dist/index.js &
+  local bp=$!
+  local wc=0 mw=120 ls=false
+  while (( wc < mw )); do
+    if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+      sleep 3
+      ls=true
+      break
+    fi
+    if ! kill -0 "$bp" 2>/dev/null; then
+      break
+    fi
+    sleep 1
+    wc=$((wc+1))
+  done
+  if kill -0 "$bp" 2>/dev/null; then
+    kill "$bp" 2>/dev/null || true
+    wait "$bp" 2>/dev/null || true
+  fi
+  cd /root
+  echo ""
+  if [[ "$ls" == "true" ]] || [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+    printf "  ${G}✔${N} WhatsApp linked!\n"
+    systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
+    sleep 2
+    if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+      systemctl restart "$SVC" 2>/dev/null || true
+    fi
+  else
+    printf "  ${Y}⚠${N} QR not scanned in time\n"
+  fi
+  echo ""
+}
+_wa_logout() {
+  _load_wa_conf
+  echo ""
+  printf "  ${C}➜${N} Type ${R}LOGOUT${N} to confirm: "
+  local C=""
+  read -r C
+  if [[ "$C" != "LOGOUT" ]]; then
+    printf "  ${D}Cancelled.${N}\n"
+    return 0
+  fi
+  systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+  if [[ -d "$WA_BRIDGE_AUTH_DIR" ]]; then
+    rm -rf "${WA_BRIDGE_AUTH_DIR:?}/"*
+  fi
+  printf "  ${G}✔${N} Logged out\n"
+  echo ""
+}
+_wa_status() {
+  _load_wa_conf
+  echo ""
+  printf "${M}${B}  🦞 WhatsApp Status${N}\n"
+  echo ""
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    printf "  Bridge: ${G}● running${N}\n"
+  else
+    printf "  Bridge: ${R}● stopped${N}\n"
+  fi
+  if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
+    printf "  Account: ${G}● linked${N}\n"
+  else
+    printf "  Account: ${R}● not linked${N}\n"
+  fi
+  printf "  Port: ${B}${WA_BRIDGE_PORT}${N}\n"
+  echo ""
+}
+_wa_start() {
+  echo ""
+  systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
+  sleep 2
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    printf "  ${G}✔${N} Bridge running\n"
+  else
+    printf "  ${R}✘${N} Failed\n"
+  fi
+}
+_wa_stop() {
+  echo ""
+  systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+  printf "  ${G}✔${N} Bridge stopped\n"
+}
+_wa_restart() {
+  echo ""
+  systemctl restart "$WA_BRIDGE_SVC" 2>/dev/null || true
+  sleep 2
+  if systemctl is-active --quiet "$WA_BRIDGE_SVC" 2>/dev/null; then
+    printf "  ${G}✔${N} Bridge running\n"
+  else
+    printf "  ${R}✘${N} Failed\n"
+  fi
+}
+_wa_logs() {
+  exec journalctl -u "$WA_BRIDGE_SVC" -f
+}
+_wa_enable() {
+  _load_wa_conf
+  if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
+    local T=""
+    T=$(mktemp)
+    if jq '.channels.whatsapp.enabled = true' "$CFG" > "$T" 2>/dev/null; then
+      mv "$T" "$CFG"
+    fi
+  fi
+  WA_ENABLED="true"
+  _save_wa_conf
+  systemctl enable "$WA_BRIDGE_SVC" 2>/dev/null || true
+  systemctl start "$WA_BRIDGE_SVC" 2>/dev/null || true
+  printf "  ${G}✔${N} WhatsApp enabled\n"
+  if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+    systemctl restart "$SVC" 2>/dev/null || true
+  fi
+}
+_wa_disable() {
+  _load_wa_conf
+  if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
+    local T=""
+    T=$(mktemp)
+    if jq '.channels.whatsapp.enabled = false' "$CFG" > "$T" 2>/dev/null; then
+      mv "$T" "$CFG"
+    fi
+  fi
+  WA_ENABLED="false"
+  _save_wa_conf
+  systemctl stop "$WA_BRIDGE_SVC" 2>/dev/null || true
+  systemctl disable "$WA_BRIDGE_SVC" 2>/dev/null || true
+  printf "  ${G}✔${N} WhatsApp disabled\n"
+  if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+    systemctl restart "$SVC" 2>/dev/null || true
+  fi
+}
 
 # ═══════════════════════════════════════════════════════
 # OLLAMA MANAGER — picoclaw ollama
@@ -5949,8 +6473,8 @@ cmd_ollama() {
         ctx)      _ollama_ctx "${3:-}" ;;
         "")       _ollama_interactive ;;
         *)
-            echo -e "  ${R}✘ Unknown ollama sub-command: ${subcmd}${N}"
-            echo -e "  ${D}Usage: picoclaw ollama [status|start|stop|restart|logs|model|list|pull|remove|ctx]${N}"
+            printf "  ${R}✘ Unknown ollama sub-command: ${subcmd}${N}\n"
+            printf "  ${D}Usage: picoclaw ollama [status|start|stop|restart|logs|model|list|pull|remove|ctx]${N}\n"
             exit 1
             ;;
     esac
@@ -5960,13 +6484,13 @@ _ollama_interactive() {
     _load_ollama_conf
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Ollama Manager${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Ollama Manager${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if ! command -v ollama &>/dev/null; then
-        echo -e "  ${R}✘ Ollama is not installed${N}"
-        echo -e "  ${D}Re-run the installer and select Ollama as provider.${N}"
+        printf "  ${R}✘ Ollama is not installed${N}\n"
+        printf "  ${D}Re-run the installer and select Ollama as provider.${N}\n"
         echo ""
         return 0
     fi
@@ -5978,22 +6502,22 @@ _ollama_interactive() {
         if [[ -n "$ol_pid" && "$ol_pid" != "0" ]]; then
             ol_ram=$(ps -o rss= -p "$ol_pid" 2>/dev/null | awk '{printf "%.0fMB", $1/1024}') || ol_ram="?"
         fi
-        echo -e "  Status:    ${G}● running${N}  PID ${ol_pid} (${ol_ram} RAM)"
+        printf "  Status:    ${G}● running${N}  PID ${ol_pid} (${ol_ram} RAM)\n"
     elif systemctl is-enabled --quiet "$OLLAMA_SVC" 2>/dev/null; then
-        echo -e "  Status:    ${R}● stopped${N} (enabled)"
+        printf "  Status:    ${R}● stopped${N} (enabled)\n"
     else
-        echo -e "  Status:    ${D}○ disabled${N}"
+        printf "  Status:    ${D}○ disabled${N}\n"
     fi
 
     local model_display="${OLLAMA_CUSTOM_MODEL:-${OLLAMA_MODEL}}"
-    echo -e "  Model:     ${B}${model_display}${N}"
-    echo -e "  Base:      ${D}${OLLAMA_MODEL}${N}"
-    echo -e "  Context:   ${B}${OLLAMA_NUM_CTX}${N} tokens"
-    echo -e "  API:       ${D}http://${OLLAMA_HOST}:${OLLAMA_PORT}/v1${N}"
-    echo -e "  Provider:  ${D}routed via vllm slot in config.json${N}"
+    printf "  Model:     ${B}${model_display}${N}\n"
+    printf "  Base:      ${D}${OLLAMA_MODEL}${N}\n"
+    printf "  Context:   ${B}${OLLAMA_NUM_CTX}${N} tokens\n"
+    printf "  API:       ${D}http://${OLLAMA_HOST}:${OLLAMA_PORT}/v1${N}\n"
+    printf "  Provider:  ${D}routed via vllm slot in config.json${N}\n"
 
     echo ""
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     local is_running=false
@@ -6002,31 +6526,31 @@ _ollama_interactive() {
     fi
 
     if [[ "$is_running" == "true" ]]; then
-        echo -e "    ${C}1${N}) Stop Ollama"
-        echo -e "    ${C}2${N}) Restart Ollama"
+        printf "    ${C}1${N}) Stop Ollama\n"
+        printf "    ${C}2${N}) Restart Ollama\n"
     else
-        echo -e "    ${C}1${N}) Start Ollama"
-        echo -e "    ${C}2${N}) ${D}(not running)${N}"
+        printf "    ${C}1${N}) Start Ollama\n"
+        printf "    ${C}2${N}) ${D}(not running)${N}\n"
     fi
-    echo -e "    ${C}3${N}) Switch model"
-    echo -e "    ${C}4${N}) Change context window (currently ${OLLAMA_NUM_CTX})"
-    echo -e "    ${C}5${N}) List installed models"
-    echo -e "    ${C}6${N}) View logs"
-    echo -e "    ${C}0${N}) Back ${D}(cancel)${N}"
+    printf "    ${C}3${N}) Switch model\n"
+    printf "    ${C}4${N}) Change context window (currently ${OLLAMA_NUM_CTX})\n"
+    printf "    ${C}5${N}) List installed models\n"
+    printf "    ${C}6${N}) View logs\n"
+    printf "    ${C}0${N}) Back ${D}(cancel)${N}\n"
     echo ""
 
     local MENU_CHOICE=""
     while true; do
-        echo -ne "  ${C}➜${N} Choose (0-6): "
+        printf "  ${C}➜${N} Choose (0-6): "
         read -r MENU_CHOICE
         if [[ "$MENU_CHOICE" =~ ^[0-6]$ ]]; then
             break
         fi
-        echo -e "  ${Y}⚠ Invalid — enter 0-6${N}"
+        printf "  ${Y}⚠ Invalid — enter 0-6${N}\n"
     done
 
     case "$MENU_CHOICE" in
-        0) echo -e "  ${D}No changes.${N}"; echo ""; return 0 ;;
+        0) printf "  ${D}No changes.${N}"; echo ""; return 0 ;;
         1)
             if [[ "$is_running" == "true" ]]; then
                 _ollama_stop
@@ -6053,12 +6577,12 @@ _ollama_status() {
     _load_ollama_conf
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Ollama Status${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Ollama Status${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     if ! command -v ollama &>/dev/null; then
-        echo -e "  ${R}✘ Ollama is not installed${N}"
+        printf "  ${R}✘ Ollama is not installed${N}\n"
         echo ""
         return 0
     fi
@@ -6072,51 +6596,51 @@ _ollama_status() {
         if [[ -n "$ol_pid" && "$ol_pid" != "0" ]]; then
             ol_ram=$(ps -o rss= -p "$ol_pid" 2>/dev/null | awk '{printf "%.0fMB", $1/1024}') || ol_ram="?"
         fi
-        echo -e "  Service:   ${G}● running${N}  PID ${ol_pid}  since ${ol_since}"
-        echo -e "  RAM:       ${B}${ol_ram}${N}"
+        printf "  Service:   ${G}● running${N}  PID ${ol_pid}  since ${ol_since}\n"
+        printf "  RAM:       ${B}${ol_ram}${N}\n"
     elif systemctl is-enabled --quiet "$OLLAMA_SVC" 2>/dev/null; then
-        echo -e "  Service:   ${R}● stopped${N} (enabled — run: picoclaw ollama start)"
+        printf "  Service:   ${R}● stopped${N} (enabled — run: picoclaw ollama start)\n"
     else
-        echo -e "  Service:   ${D}○ disabled${N}"
+        printf "  Service:   ${D}○ disabled${N}\n"
     fi
 
     local model_display="${OLLAMA_CUSTOM_MODEL:-${OLLAMA_MODEL}}"
-    echo -e "  Model:     ${B}${model_display}${N}"
-    echo -e "  Base:      ${D}${OLLAMA_MODEL}${N}"
-    echo -e "  Context:   ${B}${OLLAMA_NUM_CTX}${N} tokens"
-    echo -e "  API:       ${D}http://${OLLAMA_HOST}:${OLLAMA_PORT}/v1${N}"
-    echo -e "  Version:   ${D}$(ollama --version 2>/dev/null || echo "unknown")${N}"
+    printf "  Model:     ${B}${model_display}${N}\n"
+    printf "  Base:      ${D}${OLLAMA_MODEL}${N}\n"
+    printf "  Context:   ${B}${OLLAMA_NUM_CTX}${N} tokens\n"
+    printf "  API:       ${D}http://${OLLAMA_HOST}:${OLLAMA_PORT}/v1${N}\n"
+    printf "  Version:   ${D}$(ollama --version 2>/dev/null || echo "unknown")${N}\n"
     echo ""
 }
 
 _ollama_start() {
     echo ""
-    echo -e "  ${M}🦞${N} Starting Ollama..."
+    printf "  ${M}🦞${N} Starting Ollama...\n"
     systemctl start "$OLLAMA_SVC" 2>/dev/null || true
     sleep 2
     if systemctl is-active --quiet "$OLLAMA_SVC" 2>/dev/null; then
-        echo -e "  ${G}✔${N} Ollama running"
+        printf "  ${G}✔${N} Ollama running\n"
     else
-        echo -e "  ${R}✘${N} Failed to start — check: picoclaw ollama logs"
+        printf "  ${R}✘${N} Failed to start — check: picoclaw ollama logs\n"
     fi
 }
 
 _ollama_stop() {
     echo ""
-    echo -e "  ${M}🦞${N} Stopping Ollama..."
+    printf "  ${M}🦞${N} Stopping Ollama...\n"
     systemctl stop "$OLLAMA_SVC" 2>/dev/null || true
-    echo -e "  ${G}✔${N} Ollama stopped"
+    printf "  ${G}✔${N} Ollama stopped\n"
 }
 
 _ollama_restart() {
     echo ""
-    echo -e "  ${M}🦞${N} Restarting Ollama..."
+    printf "  ${M}🦞${N} Restarting Ollama...\n"
     systemctl restart "$OLLAMA_SVC" 2>/dev/null || true
     sleep 2
     if systemctl is-active --quiet "$OLLAMA_SVC" 2>/dev/null; then
-        echo -e "  ${G}✔${N} Ollama running"
+        printf "  ${G}✔${N} Ollama running\n"
     else
-        echo -e "  ${R}✘${N} Failed to restart — check: picoclaw ollama logs"
+        printf "  ${R}✘${N} Failed to restart — check: picoclaw ollama logs\n"
     fi
 }
 
@@ -6126,44 +6650,44 @@ _ollama_logs() {
 
 _ollama_list() {
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Ollama Models${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Ollama Models${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
-    ollama list 2>/dev/null || echo -e "  ${R}✘ Failed to list models (is Ollama running?)${N}"
+    ollama list 2>/dev/null || printf "  ${R}✘ Failed to list models (is Ollama running?)${N}\n"
     echo ""
 }
 
 _ollama_pull() {
     local model_name="$1"
     if [[ -z "$model_name" ]]; then
-        echo -e "  ${R}✘ Usage: picoclaw ollama pull <model>${N}"
-        echo -e "  ${D}Example: picoclaw ollama pull qwen3:4b${N}"
+        printf "  ${R}✘ Usage: picoclaw ollama pull <model>${N}\n"
+        printf "  ${D}Example: picoclaw ollama pull qwen3:4b${N}\n"
         return 1
     fi
     echo ""
-    echo -e "  ${M}🦞${N} Pulling model: ${B}${model_name}${N}"
+    printf "  ${M}🦞${N} Pulling model: ${B}${model_name}${N}\n"
     echo ""
-    ollama pull "$model_name" || echo -e "  ${R}✘ Failed to pull model${N}"
+    ollama pull "$model_name" || printf "  ${R}✘ Failed to pull model${N}\n"
     echo ""
 }
 
 _ollama_remove() {
     local model_name="$1"
     if [[ -z "$model_name" ]]; then
-        echo -e "  ${R}✘ Usage: picoclaw ollama remove <model>${N}"
+        printf "  ${R}✘ Usage: picoclaw ollama remove <model>${N}\n"
         return 1
     fi
     echo ""
-    echo -ne "  ${C}➜${N} Remove model '${model_name}'? ${D}[y/N]${N}: "
+    printf "  ${C}➜${N} Remove model '${model_name}'? ${D}[y/N]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-n}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
-    ollama rm "$model_name" 2>/dev/null || echo -e "  ${R}✘ Failed to remove model${N}"
-    echo -e "  ${G}✔${N} Model removed: ${model_name}"
+    ollama rm "$model_name" 2>/dev/null || printf "  ${R}✘ Failed to remove model${N}\n"
+    printf "  ${G}✔${N} Model removed: ${model_name}\n"
     echo ""
 }
 
@@ -6171,29 +6695,17 @@ _ollama_model() {
     _load_ollama_conf
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Ollama Model Switcher${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Ollama Model Switcher${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
 
     local current_display="${OLLAMA_CUSTOM_MODEL:-${OLLAMA_MODEL}}"
-    echo -e "  Current model:  ${C}${current_display}${N}"
-    echo -e "  Base model:     ${D}${OLLAMA_MODEL}${N}"
-    echo -e "  Context:        ${D}${OLLAMA_NUM_CTX} tokens${N}"
+    printf "  Current model:  ${C}${current_display}${N}\n"
+    printf "  Base model:     ${D}${OLLAMA_MODEL}${N}\n"
+    printf "  Context:        ${D}${OLLAMA_NUM_CTX} tokens${N}\n"
     echo ""
 
-    local MODEL_DATA="qwen3:4b|2.5GB — best all-round intelligence, dual-mode, 100+ languages
-phi4-mini|3.3GB — best tool calling + agent restraint, stable English
-nanbeige4.1:3b|2.0GB — NEW Feb 2026, rivals 32B models, unified generalist
-gemma3:4b|3.3GB — multimodal (understands images), strong general
-qwen3:1.7b|1.0GB — ultra-light, good basics, 100+ languages
-smollm3:3b|2.0GB — HuggingFace, reasoning + tool calling + multilingual
-lfm2.5:1.2b|0.8GB — fastest inference (1.5s CPU), hybrid architecture
-qwen3:0.6b|0.4GB — 600M params, impossibly good tool calling for size
-deepseek-r1:1.5b|1.0GB — reasoning specialist, math focus
-gemma3:1b|0.8GB — Google tiny, basic tasks
-llama3.2:3b|2.0GB — Meta, solid instruction following
-mistral:7b|4.1GB — classic workhorse (needs 8GB+ RAM)
-qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
+    local MODEL_DATA="$CLI_MODELS_OLLAMA"
 
     local -a MODEL_IDS=()
     local -a MODEL_DESCS=()
@@ -6205,7 +6717,7 @@ qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
     done <<< "$MODEL_DATA"
 
     local COUNT=${#MODEL_IDS[@]}
-    echo -e "  ${B}Available models:${N}"
+    printf "  ${B}Available models:${N}\n"
     echo ""
 
     for i in "${!MODEL_IDS[@]}"; do
@@ -6223,15 +6735,15 @@ qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
 
     local NEW_BASE_MODEL=""
     while true; do
-        echo -ne "  ${C}➜${N} Choose (1-${COUNT}, or c for custom): "
+        printf "  ${C}➜${N} Choose (1-${COUNT}, or c for custom): "
         local CHOICE=""
         read -r CHOICE
 
         if [[ "$CHOICE" == "c" || "$CHOICE" == "C" ]]; then
-            echo -ne "  ${C}➜${N} Enter model ID: "
+            printf "  ${C}➜${N} Enter model ID: "
             read -r NEW_BASE_MODEL
             if [[ -z "$NEW_BASE_MODEL" ]]; then
-                echo -e "  ${Y}⚠ Cancelled${N}"
+                printf "  ${Y}⚠ Cancelled${N}\n"
                 return 0
             fi
             break
@@ -6239,41 +6751,41 @@ qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
             NEW_BASE_MODEL="${MODEL_IDS[$((CHOICE - 1))]}"
             break
         else
-            echo -e "  ${Y}⚠ Invalid — enter 1-${COUNT} or c${N}"
+            printf "  ${Y}⚠ Invalid — enter 1-${COUNT} or c${N}\n"
         fi
     done
 
     if [[ "$NEW_BASE_MODEL" == "$OLLAMA_MODEL" ]]; then
-        echo -e "  ${Y}⚠ That's already the current model${N}"
+        printf "  ${Y}⚠ That's already the current model${N}\n"
         return 0
     fi
 
     echo ""
-    echo -e "  ${D}Change model:${N}"
-    echo -e "    ${R}${OLLAMA_MODEL}${N}  →  ${G}${NEW_BASE_MODEL}${N}"
+    printf "  ${D}Change model:${N}\n"
+    printf "    ${R}${OLLAMA_MODEL}${N}  →  ${G}${NEW_BASE_MODEL}${N}\n"
     echo ""
-    echo -ne "  ${C}➜${N} Apply? ${D}[Y/n]${N}: "
+    printf "  ${C}➜${N} Apply? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
     # Pull the new model
     echo ""
-    echo -e "  ${M}🦞${N} Pulling ${B}${NEW_BASE_MODEL}${N}..."
-    ollama pull "$NEW_BASE_MODEL" || { echo -e "  ${R}✘ Failed to pull model${N}"; return 1; }
-    echo -e "  ${G}✔${N} Model downloaded"
+    printf "  ${M}🦞${N} Pulling ${B}${NEW_BASE_MODEL}${N}...\n"
+    ollama pull "$NEW_BASE_MODEL" || { printf "  ${R}✘ Failed to pull model${N}\n"; return 1; }
+    printf "  ${G}✔${N} Model downloaded\n"
 
     # Create custom Modelfile with current num_ctx
     local custom_name="picoclaw-${NEW_BASE_MODEL//[:\/]/-}"
     local mf="/tmp/picoclaw-modelfile"
     printf 'FROM %s\nPARAMETER num_ctx %s\n' "$NEW_BASE_MODEL" "$OLLAMA_NUM_CTX" > "$mf"
-    ollama create "$custom_name" -f "$mf" || { echo -e "  ${R}✘ Failed to create custom model${N}"; rm -f "$mf"; return 1; }
+    ollama create "$custom_name" -f "$mf" || { printf "  ${R}✘ Failed to create custom model${N}\n"; rm -f "$mf"; return 1; }
     rm -f "$mf"
-    echo -e "  ${G}✔${N} Custom model: ${B}${custom_name}${N} (ctx=${OLLAMA_NUM_CTX})"
+    printf "  ${G}✔${N} Custom model: ${B}${custom_name}${N} (ctx=${OLLAMA_NUM_CTX})\n"
 
     # Update config.json
     if [[ -f "$CFG" ]] && command -v jq &>/dev/null; then
@@ -6281,10 +6793,10 @@ qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
         TMPFILE=$(mktemp)
         if jq --arg m "$custom_name" '.agents.defaults.model = $m' "$CFG" > "$TMPFILE" 2>/dev/null; then
             mv "$TMPFILE" "$CFG"
-            echo -e "  ${G}✔${N} Config updated: model → ${B}${custom_name}${N}"
+            printf "  ${G}✔${N} Config updated: model → ${B}${custom_name}${N}\n"
         else
             rm -f "$TMPFILE"
-            echo -e "  ${Y}⚠${N} Failed to update config.json"
+            printf "  ${Y}⚠${N} Failed to update config.json\n"
         fi
     fi
 
@@ -6292,23 +6804,23 @@ qwen3:8b|4.7GB — most intelligent 8B (needs 8GB+ RAM)"
     OLLAMA_MODEL="$NEW_BASE_MODEL"
     OLLAMA_CUSTOM_MODEL="$custom_name"
     _save_ollama_conf
-    echo -e "  ${G}✔${N} Ollama config updated"
+    printf "  ${G}✔${N} Ollama config updated\n"
 
     # Restart gateway
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
         echo ""
-        echo -ne "  ${C}➜${N} Restart gateway to apply? ${D}[Y/n]${N}: "
+        printf "  ${C}➜${N} Restart gateway to apply? ${D}[Y/n]${N}: "
         local DO_RESTART=""
         read -r DO_RESTART
         DO_RESTART="${DO_RESTART:-y}"
         if [[ "${DO_RESTART,,}" == "y" || "${DO_RESTART,,}" == "yes" ]]; then
-            echo -e "  ${M}🦞${N} Restarting gateway..."
+            printf "  ${M}🦞${N} Restarting gateway...\n"
             systemctl restart "$SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} Gateway running with ${B}${custom_name}${N}"
+                printf "  ${G}✔${N} Gateway running with ${B}${custom_name}${N}\n"
             else
-                echo -e "  ${Y}⚠${N} Gateway may have issues — check: picoclaw logs"
+                printf "  ${Y}⚠${N} Gateway may have issues — check: picoclaw logs\n"
             fi
         fi
     fi
@@ -6320,45 +6832,45 @@ _ollama_ctx() {
     _load_ollama_conf
 
     echo ""
-    echo -e "${M}${B}  🦞 PicoClaw — Ollama Context Window${N}"
-    echo -e "${D}  ─────────────────────────────────────────────${N}"
+    printf "${M}${B}  🦞 PicoClaw — Ollama Context Window${N}\n"
+    printf "${D}  ─────────────────────────────────────────────${N}\n"
     echo ""
-    echo -e "  Current context:  ${B}${OLLAMA_NUM_CTX}${N} tokens"
-    echo -e "  Current model:    ${B}${OLLAMA_CUSTOM_MODEL:-${OLLAMA_MODEL}}${N}"
+    printf "  Current context:  ${B}${OLLAMA_NUM_CTX}${N} tokens\n"
+    printf "  Current model:    ${B}${OLLAMA_CUSTOM_MODEL:-${OLLAMA_MODEL}}${N}\n"
     echo ""
-    echo -e "  ${D}Lower = less RAM. Use 2048 on 4GB RAM, 4096 on 6GB, 8192+ on 8GB+${N}"
+    printf "  ${D}Lower = less RAM. Use 2048 on 4GB RAM, 4096 on 6GB, 8192+ on 8GB+${N}\n"
     echo ""
 
     if [[ -z "$new_ctx" ]]; then
         while true; do
-            echo -ne "  ${C}➜${N} New context window size (>= 512): "
+            printf "  ${C}➜${N} New context window size (>= 512): "
             read -r new_ctx
             if [[ "$new_ctx" =~ ^[0-9]+$ ]] && (( new_ctx >= 512 )); then
                 break
             fi
-            echo -e "  ${Y}⚠ Must be a number >= 512${N}"
+            printf "  ${Y}⚠ Must be a number >= 512${N}\n"
             new_ctx=""
         done
     else
         if ! [[ "$new_ctx" =~ ^[0-9]+$ ]] || (( new_ctx < 512 )); then
-            echo -e "  ${R}✘ Context window must be a number >= 512${N}"
+            printf "  ${R}✘ Context window must be a number >= 512${N}\n"
             return 1
         fi
     fi
 
     if [[ "$new_ctx" == "$OLLAMA_NUM_CTX" ]]; then
-        echo -e "  ${Y}⚠ Same value — no change.${N}"
+        printf "  ${Y}⚠ Same value — no change.${N}\n"
         return 0
     fi
 
     echo ""
-    echo -e "  ${D}Change context:${N} ${R}${OLLAMA_NUM_CTX}${N} → ${G}${new_ctx}${N}"
-    echo -ne "  ${C}➜${N} Apply? ${D}[Y/n]${N}: "
+    printf "  ${D}Change context:${N} ${R}${OLLAMA_NUM_CTX}${N} → ${G}${new_ctx}${N}\n"
+    printf "  ${C}➜${N} Apply? ${D}[Y/n]${N}: "
     local CONFIRM=""
     read -r CONFIRM
     CONFIRM="${CONFIRM:-y}"
     if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
-        echo -e "  ${D}Cancelled.${N}"
+        printf "  ${D}Cancelled.${N}\n"
         return 0
     fi
 
@@ -6367,7 +6879,7 @@ _ollama_ctx() {
     local custom_name="picoclaw-${base_model//[:\/]/-}"
     local mf="/tmp/picoclaw-modelfile"
     printf 'FROM %s\nPARAMETER num_ctx %s\n' "$base_model" "$new_ctx" > "$mf"
-    ollama create "$custom_name" -f "$mf" || { echo -e "  ${R}✘ Failed to recreate custom model${N}"; rm -f "$mf"; return 1; }
+    ollama create "$custom_name" -f "$mf" || { printf "  ${R}✘ Failed to recreate custom model${N}\n"; rm -f "$mf"; return 1; }
     rm -f "$mf"
 
     OLLAMA_NUM_CTX="$new_ctx"
@@ -6385,12 +6897,12 @@ _ollama_ctx() {
         fi
     fi
 
-    echo -e "  ${G}✔${N} Context window changed to: ${B}${new_ctx}${N} tokens"
-    echo -e "  ${G}✔${N} Custom model recreated: ${B}${custom_name}${N}"
+    printf "  ${G}✔${N} Context window changed to: ${B}${new_ctx}${N} tokens\n"
+    printf "  ${G}✔${N} Custom model recreated: ${B}${custom_name}${N}\n"
 
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
         echo ""
-        echo -ne "  ${C}➜${N} Restart gateway to apply? ${D}[Y/n]${N}: "
+        printf "  ${C}➜${N} Restart gateway to apply? ${D}[Y/n]${N}: "
         local DO_RESTART=""
         read -r DO_RESTART
         DO_RESTART="${DO_RESTART:-y}"
@@ -6398,7 +6910,7 @@ _ollama_ctx() {
             systemctl restart "$SVC" 2>/dev/null || true
             sleep 2
             if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-                echo -e "  ${G}✔${N} Gateway restarted"
+                printf "  ${G}✔${N} Gateway restarted\n"
             fi
         fi
     fi
@@ -6436,73 +6948,129 @@ WRAPEOF
 #!/bin/bash
 [[ $- == *i* ]] || return
 echo ""
-echo -e "\033[0;35m  🦞 PicoClaw — this machine is PicoClaw-owned\033[0m"
-echo -e "\033[2m  ─────────────────────────────────────────────\033[0m"
-echo -e "\033[0;36m    picoclaw status\033[0m                    check all"
-echo -e "\033[0;36m    picoclaw agent\033[0m                     interactive chat"
-echo -e "\033[0;36m    picoclaw agent -m \"...\"\033[0m            one-shot"
-echo -e "\033[0;36m    picoclaw start\033[0m                     start gateway"
-echo -e "\033[0;36m    picoclaw stop\033[0m                      stop gateway"
-echo -e "\033[0;36m    picoclaw restart\033[0m                   restart gateway"
-echo -e "\033[0;36m    picoclaw logs\033[0m                      live logs (ctrl+c)"
-echo -e "\033[0;36m    picoclaw logs -n 50\033[0m                last 50 lines"
-echo -e "\033[0;36m    picoclaw model\033[0m                     switch model"
-echo -e "\033[0;36m    picoclaw telegram\033[0m                  manage Telegram & users"
-echo -e "\033[0;36m    picoclaw whatsapp\033[0m                  WhatsApp bridge management"
-echo -e "\033[0;36m    picoclaw whatsapp login\033[0m            scan QR to link account"
-echo -e "\033[0;36m    picoclaw ollama\033[0m                    Ollama local LLM management"
-echo -e "\033[0;36m    picoclaw ollama model\033[0m              switch Ollama model"
-echo -e "\033[0;36m    picoclaw ollama list\033[0m               list installed models"
-echo -e "\033[0;36m    picoclaw ollama ctx 4096\033[0m           change context window"
-echo -e "\033[0;36m    picoclaw ollama logs\033[0m               Ollama logs"
-echo -e "\033[0;36m    picoclaw atlas\033[0m                     Atlas skills status"
-echo -e "\033[0;36m    picoclaw atlas update\033[0m              update skills from repo"
-echo -e "\033[0;36m    picoclaw ftp\033[0m                       FTP server management"
-echo -e "\033[0;36m    picoclaw backup\033[0m                    create backup"
-echo -e "\033[0;36m    picoclaw backup list\033[0m               list all backups"
-echo -e "\033[0;36m    picoclaw edit\033[0m                      edit config"
-echo -e "\033[2m  Config: /root/.picoclaw/config.json\033[0m"
-echo -e "\033[2m  Skills: /root/.picoclaw/workspace/skills/\033[0m"
-echo -e "\033[2m  Backup: /root/backup/\033[0m"
-echo -e "\033[2m  Docs:   https://github.com/sipeed/picoclaw\033[0m"
+printf "\033[0;35m  🦞 PicoClaw — this machine is PicoClaw-owned\033[0m\n"
+printf "\033[2m  ─────────────────────────────────────────────\033[0m\n"
+printf "\033[0;36m    picoclaw status\033[0m                    check all\n"
+printf "\033[0;36m    picoclaw agent\033[0m                     interactive chat\n"
+printf "\033[0;36m    picoclaw agent -m \"...\"\033[0m            one-shot\n"
+printf "\033[0;36m    picoclaw start\033[0m                     start gateway\n"
+printf "\033[0;36m    picoclaw stop\033[0m                      stop gateway\n"
+printf "\033[0;36m    picoclaw restart\033[0m                   restart gateway\n"
+printf "\033[0;36m    picoclaw logs\033[0m                      live logs (ctrl+c)\n"
+printf "\033[0;36m    picoclaw logs -n 50\033[0m                last 50 lines\n"
+printf "\033[0;36m    picoclaw model\033[0m                     switch model\n"
+printf "\033[0;36m    picoclaw telegram\033[0m                  manage Telegram & users\n"
+printf "\033[0;36m    picoclaw whatsapp\033[0m                  WhatsApp bridge management\n"
+printf "\033[0;36m    picoclaw whatsapp login\033[0m            scan QR to link account\n"
+printf "\033[0;36m    picoclaw ollama\033[0m                    Ollama local LLM management\n"
+printf "\033[0;36m    picoclaw ollama model\033[0m              switch Ollama model\n"
+printf "\033[0;36m    picoclaw ollama list\033[0m               list installed models\n"
+printf "\033[0;36m    picoclaw ollama ctx 4096\033[0m           change context window\n"
+printf "\033[0;36m    picoclaw ollama logs\033[0m               Ollama logs\n"
+printf "\033[0;36m    picoclaw atlas\033[0m                     Atlas skills status\n"
+printf "\033[0;36m    picoclaw atlas update\033[0m              update skills from repo\n"
+printf "\033[0;36m    picoclaw ftp\033[0m                       FTP server management\n"
+printf "\033[0;36m    picoclaw backup\033[0m                    create backup\n"
+printf "\033[0;36m    picoclaw backup list\033[0m               list all backups\n"
+printf "\033[0;36m    picoclaw edit\033[0m                      edit config\n"
+printf "\033[2m  Config: /root/.picoclaw/config.json\033[0m\n"
+printf "\033[2m  Skills: /root/.picoclaw/workspace/skills/\033[0m\n"
+printf "\033[2m  Backup: /root/backup/\033[0m\n"
+printf "\033[2m  Docs:   https://github.com/sipeed/picoclaw\033[0m\n"
 if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then
-    echo -e "\033[0;32m  Perf:   ● optimized (BBR + sysctl + zram + I/O + DNS)\033[0m"
+    printf "\033[0;32m  Perf:   ● optimized (BBR + sysctl + zram + I/O + DNS)\033[0m\n"
 fi
 if [[ -f /root/.picoclaw/atlas.json ]] && command -v jq &>/dev/null; then
-    local ac=""
+    ac=""
     ac=$(jq -r '.skill_count // 0' /root/.picoclaw/atlas.json 2>/dev/null) || ac="?"
-    echo -e "\033[0;32m  Atlas:  ● ${ac} skill(s) installed\033[0m"
+    printf "\033[0;32m  Atlas:  ● ${ac} skill(s) installed\033[0m\n"
 fi
 if command -v vsftpd &>/dev/null && systemctl is-active --quiet vsftpd 2>/dev/null; then
-    echo -e "\033[0;32m  FTP:    ● running\033[0m"
+    printf "\033[0;32m  FTP:    ● running\033[0m\n"
 fi
 if command -v ollama &>/dev/null; then
     if systemctl is-active --quiet ollama 2>/dev/null; then
-        local ol_model=""
+        ol_model=""
         if [[ -f /root/.picoclaw/ollama.conf ]]; then
-            ol_model=$(grep "^OLLAMA_CUSTOM_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d'"' -f2) || ol_model=""
+            ol_model=$(grep "^OLLAMA_CUSTOM_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d"'" -f2) || ol_model=""
             if [[ -z "$ol_model" ]]; then
-                ol_model=$(grep "^OLLAMA_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d'"' -f2) || ol_model="?"
+                ol_model=$(grep "^OLLAMA_MODEL=" /root/.picoclaw/ollama.conf 2>/dev/null | cut -d"'" -f2) || ol_model="?"
             fi
         fi
-        echo -e "\033[0;32m  Ollama: ● running (${ol_model})\033[0m"
+        printf "\033[0;32m  Ollama: ● running (${ol_model})\033[0m\n"
     else
-        echo -e "\033[1;33m  Ollama: ● installed, stopped\033[0m"
+        printf "\033[1;33m  Ollama: ● installed, stopped\033[0m\n"
     fi
 fi
 if [[ -f /root/.picoclaw/whatsapp-auth/creds.json ]]; then
     if systemctl is-active --quiet picoclaw-whatsapp-bridge 2>/dev/null; then
-        echo -e "\033[0;32m  WA:     ● bridge running, account linked\033[0m"
+        printf "\033[0;32m  WA:     ● bridge running, account linked\033[0m\n"
     else
-        echo -e "\033[1;33m  WA:     ● account linked, bridge stopped\033[0m"
+        printf "\033[1;33m  WA:     ● account linked, bridge stopped\033[0m\n"
     fi
 elif [[ -d /opt/picoclaw-whatsapp-bridge ]]; then
-    echo -e "\033[1;33m  WA:     ⚠ bridge installed, login needed: picoclaw whatsapp login\033[0m"
+    printf "\033[1;33m  WA:     ⚠ bridge installed, login needed: picoclaw whatsapp login\033[0m\n"
 fi
 echo ""
 BNEOF
     chmod +x /etc/profile.d/picoclaw.sh
     success "Login banner → /etc/profile.d/picoclaw.sh"
+}
+
+# ════════════════════════════════════════════════
+# STEP 13: INITIAL BACKUP
+# ════════════════════════════════════════════════
+initial_backup() {
+    step "13/14" "Initial Backup"
+
+    printf "  ${DIM}Creating a snapshot of the freshly installed system.${NC}\n"
+    printf "  ${DIM}This serves as your recovery point if anything changes.${NC}\n"
+
+    if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
+        info "Automatic backups enabled — creating initial snapshot..."
+        _do_backup "initial"
+    elif [[ "$CONFIG_LOADED" == "true" ]]; then
+        info "Auto-backup disabled — skipping initial backup"
+    else
+        if ask_yn "Create initial backup now?" "y"; then
+            _do_backup "initial"
+        else
+            info "Skipped — create one anytime with: picoclaw backup"
+        fi
+    fi
+}
+
+# ════════════════════════════════════════════════
+# BACKUP ENGINE — Delegates to CLI wrapper
+# ════════════════════════════════════════════════
+_do_backup() {
+    local trigger="${1:-manual}"
+
+    # Delegate to CLI wrapper if available (installed in step 11)
+    if [[ -x "$PICOCLAW_BIN" ]]; then
+        "$PICOCLAW_BIN" backup "--${trigger}"
+        return $?
+    fi
+
+    # Minimal fallback if CLI wrapper doesn't exist (should never happen)
+    warn "CLI wrapper not found — creating minimal backup fallback"
+    local timestamp
+    timestamp=$(date +"%m%d%y_%H%M%S")
+    local snap_dir="${BACKUP_DIR}/backup_${timestamp}"
+    mkdir -p "$snap_dir"
+
+    if [[ -d "$CONFIG_DIR" ]]; then
+        cp -a "$CONFIG_DIR" "${snap_dir}/picoclaw_config" 2>/dev/null || true
+        success "Backed up config dir"
+    fi
+
+    if [[ -f "$PICOCLAW_REAL" ]]; then
+        cp -a "$PICOCLAW_REAL" "${snap_dir}/picoclaw.bin" 2>/dev/null || true
+        success "Backed up binary"
+    fi
+
+    success "Minimal backup complete: ${snap_dir}"
+    info "Install CLI wrapper to enable full backup features"
 }
 
 # ════════════════════════════════════════════════
@@ -6669,7 +7237,7 @@ verify() {
 
         if command -v node &>/dev/null; then
             local nv=""
-            nv=$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1) || nv="0"
+            nv=$(_node_major)
             if [[ "$nv" =~ ^[0-9]+$ ]] && (( nv >= 20 )); then
                 success "WhatsApp: Node.js $(node --version) (>= 20 OK)"
             else
@@ -6810,14 +7378,22 @@ verify() {
                 success "Atlas: ${atlas_skill_count} skill(s) installed in ${ATLAS_SKILLS_DIR}/"
                 for sd in "${ATLAS_SKILLS_DIR}"/*/; do
                     if [[ -f "${sd}SKILL.md" ]]; then
-                        local sn
-                        sn=$(basename "$sd")
+                        local sn="${sd%/}"
+                        sn="${sn##*/}"
                         local sv="?"
                         if [[ -f "${sd}VERSION" ]]; then
-                            sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+                            sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+                    sv="${sv//[[:space:]]/}"
                         fi
-                        local fc
-                        fc=$(find "$sd" -type f 2>/dev/null | wc -l) || fc="?"
+                        local fc=0
+                        shopt -s nullglob dotglob
+                        local -a files=("$sd"/*)
+                        for f in "${files[@]}"; do
+                            if [[ -f "$f" ]]; then
+                                fc=$((fc + 1))
+                            fi
+                        done
+                        shopt -u nullglob dotglob
                         success "  Atlas skill: ${sn} (v${sv}, ${fc} files)"
                     fi
                 done
@@ -6880,7 +7456,7 @@ verify() {
 # ════════════════════════════════════════════════
 final() {
     echo ""
-    echo -e "${MAGENTA}${BOLD}"
+    printf "${MAGENTA}${BOLD}\n"
     cat << 'EOF'
     ╔══════════════════════════════════════════════════════════╗
     ║                                                          ║
@@ -6888,30 +7464,30 @@ final() {
     ║                                                          ║
     ╚══════════════════════════════════════════════════════════╝
 EOF
-    echo -e "${NC}"
+    printf "${NC}\n"
 
-    echo -e "  ${GREEN}✔${NC} Binary:    ${PICOCLAW_REAL}"
-    echo -e "  ${GREEN}✔${NC} Wrapper:   ${PICOCLAW_BIN}"
-    echo -e "  ${GREEN}✔${NC} Config:    ${CONFIG_FILE}"
-    echo -e "  ${GREEN}✔${NC} Workspace: ${WORKSPACE_DIR}"
+    printf "  ${GREEN}✔${NC} Binary:    ${PICOCLAW_REAL}\n"
+    printf "  ${GREEN}✔${NC} Wrapper:   ${PICOCLAW_BIN}\n"
+    printf "  ${GREEN}✔${NC} Config:    ${CONFIG_FILE}\n"
+    printf "  ${GREEN}✔${NC} Workspace: ${WORKSPACE_DIR}\n"
     if [[ "$SETUP_SYSTEMD" == "true" ]]; then
-        echo -e "  ${GREEN}✔${NC} Service:   picoclaw-gateway.service"
-        echo -e "  ${GREEN}✔${NC} Watchdog:  picoclaw-watchdog.timer (60s)"
-        echo -e "  ${GREEN}✔${NC} Cron:      /etc/cron.d/picoclaw-boot"
+        printf "  ${GREEN}✔${NC} Service:   picoclaw-gateway.service\n"
+        printf "  ${GREEN}✔${NC} Watchdog:  picoclaw-watchdog.timer (60s)\n"
+        printf "  ${GREEN}✔${NC} Cron:      /etc/cron.d/picoclaw-boot\n"
     fi
-    echo -e "  ${GREEN}✔${NC} Backup:    ${BACKUP_DIR}"
+    printf "  ${GREEN}✔${NC} Backup:    ${BACKUP_DIR}\n"
     if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
-        echo -e "  ${GREEN}✔${NC} Auto-bkp:  every ${BACKUP_INTERVAL_DAYS} days, keep ${BACKUP_MAX_KEEP}"
+        printf "  ${GREEN}✔${NC} Auto-bkp:  every ${BACKUP_INTERVAL_DAYS} days, keep ${BACKUP_MAX_KEEP}\n"
     fi
     if [[ "$SETUP_PERFORMANCE" == "true" ]]; then
-        echo -e "  ${GREEN}✔${NC} Perf:      optimized (BBR + sysctl + zram + I/O + DNS + limits)"
+        printf "  ${GREEN}✔${NC} Perf:      optimized (BBR + sysctl + zram + I/O + DNS + limits)\n"
     fi
     if [[ "$SETUP_ATLAS" == "true" ]]; then
         local atlas_count=0
         if [[ -f "$ATLAS_META_FILE" ]] && command -v jq &>/dev/null; then
             atlas_count=$(jq -r '.skill_count // 0' "$ATLAS_META_FILE" 2>/dev/null) || atlas_count=0
         fi
-        echo -e "  ${GREEN}✔${NC} Atlas:     ${atlas_count} skill(s) from ${ATLAS_REPO_URL}"
+        printf "  ${GREEN}✔${NC} Atlas:     ${atlas_count} skill(s) from ${ATLAS_REPO_URL}\n"
     fi
     if [[ "$SETUP_FTP" == "true" ]]; then
         local public_ip=""
@@ -6919,159 +7495,160 @@ EOF
         if [[ -z "$public_ip" ]]; then
             public_ip=$(hostname -I 2>/dev/null | awk '{print $1}') || public_ip="?"
         fi
-        echo -e "  ${GREEN}✔${NC} FTP:       ${FTP_USER}@:${FTP_PORT} (TLS: ${FTP_TLS}, full access)"
-        echo -e "             ${DIM}ftp://${FTP_USER}@${public_ip}:${FTP_PORT}${NC}"
+        printf "  ${GREEN}✔${NC} FTP:       ${FTP_USER}@:${FTP_PORT} (TLS: ${FTP_TLS}, full access)\n"
+        printf "             ${DIM}ftp://${FTP_USER}@${public_ip}:${FTP_PORT}${NC}\n"
     fi
     if [[ "$WA_ENABLED" == "true" ]]; then
-        echo -e "  ${GREEN}✔${NC} WhatsApp:  bridge installed (port ${WA_BRIDGE_PORT})"
+        printf "  ${GREEN}✔${NC} WhatsApp:  bridge installed (port ${WA_BRIDGE_PORT})\n"
         if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-            echo -e "             ${GREEN}account linked${NC}"
+            printf "             ${GREEN}account linked${NC}\n"
         else
-            echo -e "             ${YELLOW}⚠ login required: picoclaw whatsapp login${NC}"
+            printf "             ${YELLOW}⚠ login required: picoclaw whatsapp login${NC}\n"
         fi
     fi
     if [[ "$SETUP_OLLAMA" == "true" ]]; then
         local ollama_custom="picoclaw-${OLLAMA_MODEL//[:\/]/-}"
-        echo -e "  ${GREEN}✔${NC} Ollama:    ${BOLD}${ollama_custom}${NC} (base: ${OLLAMA_MODEL})"
-        echo -e "             ${DIM}API: ${OLLAMA_API_BASE} (routed via vllm slot)${NC}"
-        echo -e "             ${DIM}Context: ${OLLAMA_NUM_CTX} tokens${NC}"
+        printf "  ${GREEN}✔${NC} Ollama:    ${BOLD}${ollama_custom}${NC} (base: ${OLLAMA_MODEL})\n"
+        printf "             ${DIM}API: ${OLLAMA_API_BASE} (routed via vllm slot)${NC}\n"
+        printf "             ${DIM}Context: ${OLLAMA_NUM_CTX} tokens${NC}\n"
     fi
     echo ""
-    echo -e "  ${BOLD}Reboot safety:${NC} systemd + watchdog + cron @reboot"
+    printf "  ${BOLD}Reboot safety:${NC} systemd + watchdog + cron @reboot\n"
     echo ""
-    echo -e "  ${BOLD}All commands:${NC}  picoclaw <command>"
+    printf "  ${BOLD}All commands:${NC}  picoclaw <command>\n"
     echo ""
-    echo -e "  ${CYAN}picoclaw status${NC}                         check everything"
-    echo -e "  ${CYAN}picoclaw start${NC}                          start gateway"
-    echo -e "  ${CYAN}picoclaw stop${NC}                           stop gateway"
-    echo -e "  ${CYAN}picoclaw restart${NC}                        restart gateway"
-    echo -e "  ${CYAN}picoclaw logs${NC}                           live logs (ctrl+c)"
-    echo -e "  ${CYAN}picoclaw logs -n 50${NC}                     last 50 lines"
-    echo -e "  ${CYAN}picoclaw model${NC}                          switch model"
-    echo -e "  ${CYAN}picoclaw telegram${NC}                       manage Telegram & users"
-    echo -e "  ${CYAN}picoclaw whatsapp${NC}                       WhatsApp bridge management"
-    echo -e "  ${CYAN}picoclaw whatsapp login${NC}                 scan QR to link account"
-    echo -e "  ${CYAN}picoclaw whatsapp logout${NC}                unlink account"
-    echo -e "  ${CYAN}picoclaw whatsapp status${NC}                bridge status"
-    echo -e "  ${CYAN}picoclaw whatsapp start${NC}                 start bridge"
-    echo -e "  ${CYAN}picoclaw whatsapp stop${NC}                  stop bridge"
-    echo -e "  ${CYAN}picoclaw whatsapp logs${NC}                  bridge logs"
-    echo -e "  ${CYAN}picoclaw whatsapp enable${NC}                enable WhatsApp"
-    echo -e "  ${CYAN}picoclaw whatsapp disable${NC}               disable WhatsApp"
-    echo -e "  ${CYAN}picoclaw ollama${NC}                         Ollama local LLM management"
-    echo -e "  ${CYAN}picoclaw ollama status${NC}                  Ollama service status"
-    echo -e "  ${CYAN}picoclaw ollama model${NC}                   switch Ollama model"
-    echo -e "  ${CYAN}picoclaw ollama list${NC}                    list installed models"
-    echo -e "  ${CYAN}picoclaw ollama pull <model>${NC}            pull a new model"
-    echo -e "  ${CYAN}picoclaw ollama remove <model>${NC}          remove a model"
-    echo -e "  ${CYAN}picoclaw ollama ctx <number>${NC}            change context window"
-    echo -e "  ${CYAN}picoclaw ollama start${NC}                   start Ollama service"
-    echo -e "  ${CYAN}picoclaw ollama stop${NC}                    stop Ollama service"
-    echo -e "  ${CYAN}picoclaw ollama restart${NC}                 restart Ollama service"
-    echo -e "  ${CYAN}picoclaw ollama logs${NC}                    Ollama logs"
-    echo -e "  ${CYAN}picoclaw atlas${NC}                          Atlas skills status"
-    echo -e "  ${CYAN}picoclaw atlas list${NC}                     list installed skills"
-    echo -e "  ${CYAN}picoclaw atlas update${NC}                   update all skills from repo"
-    echo -e "  ${CYAN}picoclaw ftp${NC}                            FTP server management"
-    echo -e "  ${CYAN}picoclaw ftp status${NC}                     FTP server status"
-    echo -e "  ${CYAN}picoclaw ftp password${NC}                   change FTP password"
-    echo -e "  ${CYAN}picoclaw ftp port${NC}                       change FTP port"
-    echo -e "  ${CYAN}picoclaw ftp tls${NC}                        toggle TLS encryption"
-    echo -e "  ${CYAN}picoclaw ftp logs${NC}                       view FTP logs"
-    echo -e "  ${CYAN}picoclaw backup${NC}                         create backup now"
-    echo -e "  ${CYAN}picoclaw backup list${NC}                    list all backups"
-    echo -e "  ${CYAN}picoclaw backup settings${NC}                backup settings"
-    echo -e "  ${CYAN}picoclaw edit${NC}                           edit config"
-    echo -e "  ${CYAN}picoclaw agent${NC}                          interactive chat"
-    echo -e "  ${CYAN}picoclaw agent -m \"hello\"${NC}               test one-shot"
-    echo -e "  ${CYAN}picoclaw gateway${NC}                        run gateway foreground"
-    echo -e "  ${CYAN}picoclaw cron list${NC}                      scheduled jobs"
-    echo -e "  ${CYAN}picoclaw skills list${NC}                    installed skills"
-    echo -e "  ${CYAN}picoclaw version${NC}                        show version"
+    printf "  ${CYAN}picoclaw status${NC}                         check everything\n"
+    printf "  ${CYAN}picoclaw start${NC}                          start gateway\n"
+    printf "  ${CYAN}picoclaw stop${NC}                           stop gateway\n"
+    printf "  ${CYAN}picoclaw restart${NC}                        restart gateway\n"
+    printf "  ${CYAN}picoclaw logs${NC}                           live logs (ctrl+c)\n"
+    printf "  ${CYAN}picoclaw logs -n 50${NC}                     last 50 lines\n"
+    printf "  ${CYAN}picoclaw model${NC}                          switch model\n"
+    printf "  ${CYAN}picoclaw telegram${NC}                       manage Telegram & users\n"
+    printf "  ${CYAN}picoclaw whatsapp${NC}                       WhatsApp bridge management\n"
+    printf "  ${CYAN}picoclaw whatsapp login${NC}                 scan QR to link account\n"
+    printf "  ${CYAN}picoclaw whatsapp logout${NC}                unlink account\n"
+    printf "  ${CYAN}picoclaw whatsapp status${NC}                bridge status\n"
+    printf "  ${CYAN}picoclaw whatsapp start${NC}                 start bridge\n"
+    printf "  ${CYAN}picoclaw whatsapp stop${NC}                  stop bridge\n"
+    printf "  ${CYAN}picoclaw whatsapp logs${NC}                  bridge logs\n"
+    printf "  ${CYAN}picoclaw whatsapp enable${NC}                enable WhatsApp\n"
+    printf "  ${CYAN}picoclaw whatsapp disable${NC}               disable WhatsApp\n"
+    printf "  ${CYAN}picoclaw ollama${NC}                         Ollama local LLM management\n"
+    printf "  ${CYAN}picoclaw ollama status${NC}                  Ollama service status\n"
+    printf "  ${CYAN}picoclaw ollama model${NC}                   switch Ollama model\n"
+    printf "  ${CYAN}picoclaw ollama list${NC}                    list installed models\n"
+    printf "  ${CYAN}picoclaw ollama pull <model>${NC}            pull a new model\n"
+    printf "  ${CYAN}picoclaw ollama remove <model>${NC}          remove a model\n"
+    printf "  ${CYAN}picoclaw ollama ctx <number>${NC}            change context window\n"
+    printf "  ${CYAN}picoclaw ollama start${NC}                   start Ollama service\n"
+    printf "  ${CYAN}picoclaw ollama stop${NC}                    stop Ollama service\n"
+    printf "  ${CYAN}picoclaw ollama restart${NC}                 restart Ollama service\n"
+    printf "  ${CYAN}picoclaw ollama logs${NC}                    Ollama logs\n"
+    printf "  ${CYAN}picoclaw atlas${NC}                          Atlas skills status\n"
+    printf "  ${CYAN}picoclaw atlas list${NC}                     list installed skills\n"
+    printf "  ${CYAN}picoclaw atlas update${NC}                   update all skills from repo\n"
+    printf "  ${CYAN}picoclaw ftp${NC}                            FTP server management\n"
+    printf "  ${CYAN}picoclaw ftp status${NC}                     FTP server status\n"
+    printf "  ${CYAN}picoclaw ftp password${NC}                   change FTP password\n"
+    printf "  ${CYAN}picoclaw ftp port${NC}                       change FTP port\n"
+    printf "  ${CYAN}picoclaw ftp tls${NC}                        toggle TLS encryption\n"
+    printf "  ${CYAN}picoclaw ftp logs${NC}                       view FTP logs\n"
+    printf "  ${CYAN}picoclaw backup${NC}                         create backup now\n"
+    printf "  ${CYAN}picoclaw backup list${NC}                    list all backups\n"
+    printf "  ${CYAN}picoclaw backup settings${NC}                backup settings\n"
+    printf "  ${CYAN}picoclaw edit${NC}                           edit config\n"
+    printf "  ${CYAN}picoclaw agent${NC}                          interactive chat\n"
+    printf "  ${CYAN}picoclaw agent -m \"hello\"${NC}               test one-shot\n"
+    printf "  ${CYAN}picoclaw gateway${NC}                        run gateway foreground\n"
+    printf "  ${CYAN}picoclaw cron list${NC}                      scheduled jobs\n"
+    printf "  ${CYAN}picoclaw skills list${NC}                    installed skills\n"
+    printf "  ${CYAN}picoclaw version${NC}                        show version\n"
     echo ""
 
-    if [[ "$TG_ENABLED" == "true" ]]; then echo -e "  ${GREEN}${BOLD}Telegram is live — message your bot!${NC}"; fi
-    if [[ "$DC_ENABLED" == "true" ]]; then echo -e "  ${GREEN}${BOLD}Discord is live — message your bot!${NC}"; fi
+    if [[ "$TG_ENABLED" == "true" ]]; then printf "  ${GREEN}${BOLD}Telegram is live — message your bot!${NC}\n"; fi
+    if [[ "$DC_ENABLED" == "true" ]]; then printf "  ${GREEN}${BOLD}Discord is live — message your bot!${NC}\n"; fi
     if [[ "$WA_ENABLED" == "true" ]]; then
         if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-            echo -e "  ${GREEN}${BOLD}WhatsApp is live — message your number!${NC}"
+            printf "  ${GREEN}${BOLD}WhatsApp is live — message your number!${NC}\n"
         else
-            echo -e "  ${YELLOW}${BOLD}WhatsApp bridge installed — run: picoclaw whatsapp login${NC}"
+            printf "  ${YELLOW}${BOLD}WhatsApp bridge installed — run: picoclaw whatsapp login${NC}\n"
         fi
     fi
-    if [[ "$FS_ENABLED" == "true" ]]; then echo -e "  ${GREEN}${BOLD}Feishu configured!${NC}"; fi
-    if [[ "$MC_ENABLED" == "true" ]]; then echo -e "  ${GREEN}${BOLD}MaixCAM configured!${NC}"; fi
+    if [[ "$FS_ENABLED" == "true" ]]; then printf "  ${GREEN}${BOLD}Feishu configured!${NC}\n"; fi
+    if [[ "$MC_ENABLED" == "true" ]]; then printf "  ${GREEN}${BOLD}MaixCAM configured!${NC}\n"; fi
 
     if [[ "$LLM_PROVIDER" == "groq" ]]; then
         echo ""
-        echo -e "  ${YELLOW}${BOLD}Groq note:${NC} Key is in the openrouter config slot (PicoClaw routing workaround)."
-        echo -e "  ${DIM}This is intentional — Groq's API is OpenAI-compatible and works perfectly.${NC}"
+        printf "  ${YELLOW}${BOLD}Groq note:${NC} Key is in the openrouter config slot (PicoClaw routing workaround).\n"
+        printf "  ${DIM}This is intentional — Groq's API is OpenAI-compatible and works perfectly.${NC}\n"
     fi
 
     if [[ "$SETUP_PERFORMANCE" == "true" ]]; then
         echo ""
-        echo -e "  ${GREEN}${BOLD}Performance optimizations applied:${NC}"
-        echo -e "  ${DIM}  TCP BBR · 60+ sysctl params · 1M file limits · zram swap${NC}"
-        echo -e "  ${DIM}  I/O scheduler · SSD TRIM · noatime · tmpfs /tmp · DNS 1.1.1.1${NC}"
-        echo -e "  ${DIM}  journald cap · fast timeouts · IRQ balance · MGLRU · KSM${NC}"
-        echo -e "  ${DIM}  Originals backed up in ~/.picoclaw/perf_backup_*/${NC}"
+        printf "  ${GREEN}${BOLD}Performance optimizations applied:${NC}\n"
+        printf "  ${DIM}  TCP BBR · 60+ sysctl params · 1M file limits · zram swap${NC}\n"
+        printf "  ${DIM}  I/O scheduler · SSD TRIM · noatime · tmpfs /tmp · DNS 1.1.1.1${NC}\n"
+        printf "  ${DIM}  journald cap · fast timeouts · IRQ balance · MGLRU · KSM${NC}\n"
+        printf "  ${DIM}  Originals backed up in ~/.picoclaw/perf_backup_*/${NC}\n"
     fi
 
     if [[ "$SETUP_ATLAS" == "true" ]]; then
         echo ""
-        echo -e "  ${GREEN}${BOLD}Atlas skills installed:${NC}"
+        printf "  ${GREEN}${BOLD}Atlas skills installed:${NC}\n"
         if [[ -d "$ATLAS_SKILLS_DIR" ]]; then
             for sd in "${ATLAS_SKILLS_DIR}"/*/; do
                 if [[ -f "${sd}SKILL.md" ]]; then
-                    local sn
-                    sn=$(basename "$sd")
+                    local sn="${sd%/}"
+                    sn="${sn##*/}"
                     local sv="?"
                     if [[ -f "${sd}VERSION" ]]; then
-                        sv=$(head -1 "${sd}VERSION" 2>/dev/null | tr -d '[:space:]') || sv="?"
+                        sv=$(head -1 "${sd}VERSION" 2>/dev/null) || sv="?"
+                    sv="${sv//[[:space:]]/}"
                     fi
-                    echo -e "  ${DIM}  ${sn} (v${sv})${NC}"
+                    printf "  ${DIM}  ${sn} (v${sv})${NC}\n"
                 fi
             done
         fi
-        echo -e "  ${DIM}  Update anytime: picoclaw atlas update${NC}"
-        echo -e "  ${DIM}  Repository: ${ATLAS_REPO_URL}${NC}"
+        printf "  ${DIM}  Update anytime: picoclaw atlas update${NC}\n"
+        printf "  ${DIM}  Repository: ${ATLAS_REPO_URL}${NC}\n"
     fi
 
     if [[ "$SETUP_FTP" == "true" ]]; then
         echo ""
-        echo -e "  ${GREEN}${BOLD}FTP server configured:${NC}"
-        echo -e "  ${DIM}  User: ${FTP_USER}  Port: ${FTP_PORT}  TLS: ${FTP_TLS}${NC}"
-        echo -e "  ${DIM}  Access: full filesystem (read/write everywhere)${NC}"
-        echo -e "  ${DIM}  Manage: picoclaw ftp${NC}"
-        echo -e "  ${YELLOW}  ⚠ Use a strong password — this user has full system access.${NC}"
+        printf "  ${GREEN}${BOLD}FTP server configured:${NC}\n"
+        printf "  ${DIM}  User: ${FTP_USER}  Port: ${FTP_PORT}  TLS: ${FTP_TLS}${NC}\n"
+        printf "  ${DIM}  Access: full filesystem (read/write everywhere)${NC}\n"
+        printf "  ${DIM}  Manage: picoclaw ftp${NC}\n"
+        printf "  ${YELLOW}  ⚠ Use a strong password — this user has full system access.${NC}\n"
     fi
 
     if [[ "$WA_ENABLED" == "true" ]]; then
         echo ""
-        echo -e "  ${GREEN}${BOLD}WhatsApp bridge configured:${NC}"
-        echo -e "  ${DIM}  Bridge: ${WA_BRIDGE_DIR} (port ${WA_BRIDGE_PORT})${NC}"
-        echo -e "  ${DIM}  Auth:   ${WA_BRIDGE_AUTH_DIR}/${NC}"
-        echo -e "  ${DIM}  Node.js: $(node --version 2>/dev/null)${NC}"
+        printf "  ${GREEN}${BOLD}WhatsApp bridge configured:${NC}\n"
+        printf "  ${DIM}  Bridge: ${WA_BRIDGE_DIR} (port ${WA_BRIDGE_PORT})${NC}\n"
+        printf "  ${DIM}  Auth:   ${WA_BRIDGE_AUTH_DIR}/${NC}\n"
+        printf "  ${DIM}  Node.js: $(node --version 2>/dev/null)${NC}\n"
         if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-            echo -e "  ${GREEN}  Account: linked (session persisted)${NC}"
+            printf "  ${GREEN}  Account: linked (session persisted)${NC}\n"
         else
-            echo -e "  ${YELLOW}  ⚠ Account NOT linked — you MUST run:${NC}"
-            echo -e "    ${CYAN}picoclaw whatsapp login${NC}"
-            echo -e "  ${YELLOW}  to scan the QR code and link your WhatsApp.${NC}"
+            printf "  ${YELLOW}  ⚠ Account NOT linked — you MUST run:${NC}\n"
+            printf "    ${CYAN}picoclaw whatsapp login${NC}\n"
+            printf "  ${YELLOW}  to scan the QR code and link your WhatsApp.${NC}\n"
         fi
-        echo -e "  ${DIM}  Manage: picoclaw whatsapp${NC}"
-        echo -e "  ${DIM}  Logs:   picoclaw whatsapp logs${NC}"
+        printf "  ${DIM}  Manage: picoclaw whatsapp${NC}\n"
+        printf "  ${DIM}  Logs:   picoclaw whatsapp logs${NC}\n"
     fi
 
     if [[ "$SETUP_OLLAMA" == "true" ]]; then
         echo ""
         local ollama_custom="picoclaw-${OLLAMA_MODEL//[:\/]/-}"
-        echo -e "  ${GREEN}${BOLD}Ollama local LLM configured:${NC}"
-        echo -e "  ${DIM}  Base model:    ${OLLAMA_MODEL}${NC}"
-        echo -e "  ${DIM}  Custom model:  ${ollama_custom} (num_ctx=${OLLAMA_NUM_CTX})${NC}"
-        echo -e "  ${DIM}  API endpoint:  ${OLLAMA_API_BASE}${NC}"
-        echo -e "  ${DIM}  Provider slot: vllm (OpenAI-compatible /v1 endpoint)${NC}"
-        echo -e "  ${DIM}  Service:       ollama (systemd-managed, auto-start on boot)${NC}"
+        printf "  ${GREEN}${BOLD}Ollama local LLM configured:${NC}\n"
+        printf "  ${DIM}  Base model:    ${OLLAMA_MODEL}${NC}\n"
+        printf "  ${DIM}  Custom model:  ${ollama_custom} (num_ctx=${OLLAMA_NUM_CTX})${NC}\n"
+        printf "  ${DIM}  API endpoint:  ${OLLAMA_API_BASE}${NC}\n"
+        printf "  ${DIM}  Provider slot: vllm (OpenAI-compatible /v1 endpoint)${NC}\n"
+        printf "  ${DIM}  Service:       ollama (systemd-managed, auto-start on boot)${NC}\n"
         # Show model size if available
         if command -v ollama &>/dev/null; then
             local ollama_model_size=""
@@ -7080,19 +7657,19 @@ EOF
                 ollama_model_size=$(ollama list 2>/dev/null | grep "${OLLAMA_MODEL%%:*}" | head -1 | awk '{print $3, $4}') || true
             fi
             if [[ -n "$ollama_model_size" && "$ollama_model_size" != " " ]]; then
-                echo -e "  ${DIM}  Model size:    ${ollama_model_size}${NC}"
+                printf "  ${DIM}  Model size:    ${ollama_model_size}${NC}\n"
             fi
         fi
-        echo -e "  ${DIM}  Manage:        picoclaw ollama${NC}"
-        echo -e "  ${DIM}  Switch model:  picoclaw ollama model${NC}"
-        echo -e "  ${DIM}  Context:       picoclaw ollama ctx <number>${NC}"
-        echo -e "  ${DIM}  Logs:          picoclaw ollama logs${NC}"
+        printf "  ${DIM}  Manage:        picoclaw ollama${NC}\n"
+        printf "  ${DIM}  Switch model:  picoclaw ollama model${NC}\n"
+        printf "  ${DIM}  Context:       picoclaw ollama ctx <number>${NC}\n"
+        printf "  ${DIM}  Logs:          picoclaw ollama logs${NC}\n"
     fi
 
     echo ""
-    echo -e "  ${DIM}Docs: https://github.com/sipeed/picoclaw${NC}"
-    echo -e "  ${DIM}Atlas: https://github.com/pr0ace/atlas${NC}"
-    echo -e "  ${DIM}Discord: https://discord.gg/V4sAZ9XWpN${NC}"
+    printf "  ${DIM}Docs: https://github.com/sipeed/picoclaw${NC}\n"
+    printf "  ${DIM}Atlas: https://github.com/pr0ace/atlas${NC}\n"
+    printf "  ${DIM}Discord: https://discord.gg/V4sAZ9XWpN${NC}\n"
     echo ""
 
     # ════════════════════════════════════════════════════════════
@@ -7100,7 +7677,7 @@ EOF
     # ════════════════════════════════════════════════════════════
     if [[ "$SETUP_PERFORMANCE" == "true" ]]; then
         # ── Performance selected → mandatory reboot ──
-        echo -e "${YELLOW}${BOLD}"
+        printf "${YELLOW}${BOLD}\n"
         cat << 'REBOOTEOF'
     ╔══════════════════════════════════════════════════════════╗
     ║                                                          ║
@@ -7118,63 +7695,63 @@ EOF
     ║                                                          ║
     ╚══════════════════════════════════════════════════════════╝
 REBOOTEOF
-        echo -e "${NC}"
+        printf "${NC}\n"
 
         if [[ "$SETUP_SYSTEMD" == "true" ]]; then
-            echo -e "  ${GREEN}${BOLD}After reboot:${NC}"
-            echo -e "    ${GREEN}✔${NC} PicoClaw gateway will start automatically (systemd enabled)"
-            echo -e "    ${GREEN}✔${NC} Watchdog timer will monitor the gateway (every 60s)"
-            echo -e "    ${GREEN}✔${NC} Cron @reboot fallback will ensure recovery"
+            printf "  ${GREEN}${BOLD}After reboot:${NC}\n"
+            printf "    ${GREEN}✔${NC} PicoClaw gateway will start automatically (systemd enabled)\n"
+            printf "    ${GREEN}✔${NC} Watchdog timer will monitor the gateway (every 60s)\n"
+            printf "    ${GREEN}✔${NC} Cron @reboot fallback will ensure recovery\n"
             if [[ "$SETUP_OLLAMA" == "true" ]]; then
-                echo -e "    ${GREEN}✔${NC} Ollama will start automatically (model pre-downloaded)"
+                printf "    ${GREEN}✔${NC} Ollama will start automatically (model pre-downloaded)\n"
             fi
             if [[ "$SETUP_FTP" == "true" ]]; then
-                echo -e "    ${GREEN}✔${NC} FTP server will start automatically (vsftpd enabled)"
+                printf "    ${GREEN}✔${NC} FTP server will start automatically (vsftpd enabled)\n"
             fi
             if [[ "$WA_ENABLED" == "true" ]]; then
-                echo -e "    ${GREEN}✔${NC} WhatsApp bridge will start automatically (systemd enabled)"
+                printf "    ${GREEN}✔${NC} WhatsApp bridge will start automatically (systemd enabled)\n"
                 if [[ ! -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
-                    echo -e "    ${YELLOW}⚠${NC} But you still need to run: ${CYAN}picoclaw whatsapp login${NC}"
+                    printf "    ${YELLOW}⚠${NC} But you still need to run: ${CYAN}picoclaw whatsapp login${NC}\n"
                 fi
             fi
             echo ""
-            echo -e "  ${DIM}Your bot(s) will be live within ~15 seconds of boot.${NC}"
-            echo -e "  ${DIM}Check status after reboot with: picoclaw status${NC}"
+            printf "  ${DIM}Your bot(s) will be live within ~15 seconds of boot.${NC}\n"
+            printf "  ${DIM}Check status after reboot with: picoclaw status${NC}\n"
         else
-            echo -e "  ${YELLOW}${BOLD}After reboot:${NC}"
-            echo -e "    ${YELLOW}⚠${NC} PicoClaw gateway will ${RED}NOT${NC} start automatically"
-            echo -e "      (systemd service was not enabled during setup)"
+            printf "  ${YELLOW}${BOLD}After reboot:${NC}\n"
+            printf "    ${YELLOW}⚠${NC} PicoClaw gateway will ${RED}NOT${NC} start automatically\n"
+            printf "      (systemd service was not enabled during setup)\n"
             if [[ "$SETUP_OLLAMA" == "true" ]]; then
-                echo -e "    ${GREEN}✔${NC} Ollama will start automatically (systemd enabled)"
+                printf "    ${GREEN}✔${NC} Ollama will start automatically (systemd enabled)\n"
             fi
             if [[ "$SETUP_FTP" == "true" ]]; then
-                echo -e "    ${GREEN}✔${NC} FTP server will start automatically (vsftpd enabled)"
+                printf "    ${GREEN}✔${NC} FTP server will start automatically (vsftpd enabled)\n"
             fi
             if [[ "$WA_ENABLED" == "true" ]]; then
-                echo -e "    ${GREEN}✔${NC} WhatsApp bridge will start automatically (systemd enabled)"
+                printf "    ${GREEN}✔${NC} WhatsApp bridge will start automatically (systemd enabled)\n"
             fi
             echo ""
-            echo -e "  ${DIM}Start it manually after reboot with:${NC}"
-            echo -e "    ${CYAN}picoclaw start${NC}                    start the gateway"
-            echo -e "    ${CYAN}picoclaw logs${NC}                     view live logs"
+            printf "  ${DIM}Start it manually after reboot with:${NC}\n"
+            printf "    ${CYAN}picoclaw start${NC}                    start the gateway\n"
+            printf "    ${CYAN}picoclaw logs${NC}                     view live logs\n"
         fi
 
         echo ""
         separator
 
-        echo -e "  ${BOLD}The system will reboot now to apply all optimizations.${NC}"
+        printf "  ${BOLD}The system will reboot now to apply all optimizations.${NC}\n"
         echo ""
 
         local countdown=18
-        echo -ne "  ${YELLOW}⚠${NC} Rebooting in ${BOLD}${countdown}${NC} seconds... (press Ctrl+C to cancel) "
+        printf "  ${YELLOW}⚠${NC} Rebooting in ${BOLD}${countdown}${NC} seconds... (press Ctrl+C to cancel) "
         while [[ $countdown -gt 0 ]]; do
-            echo -ne "\r  ${YELLOW}⚠${NC} Rebooting in ${BOLD}${countdown}${NC} seconds... (press Ctrl+C to cancel)  "
+            printf "\r  ${YELLOW}⚠${NC} Rebooting in ${BOLD}${countdown}${NC} seconds... (press Ctrl+C to cancel)  "
             sleep 1
             countdown=$((countdown - 1))
         done
         echo ""
         echo ""
-        echo -e "  ${MAGENTA}${BOLD}🦞 Rebooting now...${NC}"
+        printf "  ${MAGENTA}${BOLD}🦞 Rebooting now...${NC}\n"
         echo ""
         sync
         reboot
@@ -7187,43 +7764,43 @@ REBOOTEOF
             fi
 
             if [[ "$is_running" == "true" ]]; then
-                echo -e "  ${GREEN}${BOLD}Gateway is already running!${NC}"
+                printf "  ${GREEN}${BOLD}Gateway is already running!${NC}\n"
                 echo ""
-                if ask_yn "View live logs now? (Ctrl+C to exit)" "y"; then
+                if [[ "$CONFIG_LOADED" != "true" ]] && ask_yn "View live logs now? (Ctrl+C to exit)" "y"; then
                     echo ""
-                    echo -e "  ${DIM}Attaching to picoclaw-gateway logs... (Ctrl+C to detach)${NC}"
+                    printf "  ${DIM}Attaching to picoclaw-gateway logs... (Ctrl+C to detach)${NC}\n"
                     echo ""
                     journalctl -u picoclaw-gateway -f || true
                 fi
             else
-                if ask_yn "Start PicoClaw gateway now?" "y"; then
+                if [[ "$CONFIG_LOADED" != "true" ]] && ask_yn "Start PicoClaw gateway now?" "y"; then
                     echo ""
-                    echo -e "  ${MAGENTA}🦞${NC} Starting PicoClaw gateway..."
+                    printf "  ${MAGENTA}🦞${NC} Starting PicoClaw gateway...\n"
                     systemctl start picoclaw-gateway 2>/dev/null || true
                     sleep 2
                     if systemctl is-active --quiet picoclaw-gateway 2>/dev/null; then
                         local gw_pid=""
                         gw_pid=$(systemctl show picoclaw-gateway --property=MainPID --value 2>/dev/null) || true
-                        echo -e "  ${GREEN}✔${NC} Gateway running (PID ${gw_pid})"
+                        printf "  ${GREEN}✔${NC} Gateway running (PID ${gw_pid})\n"
                         echo ""
                         if ask_yn "View live logs now? (Ctrl+C to exit)" "y"; then
                             echo ""
-                            echo -e "  ${DIM}Attaching to picoclaw-gateway logs... (Ctrl+C to detach)${NC}"
+                            printf "  ${DIM}Attaching to picoclaw-gateway logs... (Ctrl+C to detach)${NC}\n"
                             echo ""
                             journalctl -u picoclaw-gateway -f || true
                         fi
                     else
-                        echo -e "  ${RED}✘${NC} Gateway failed to start"
-                        echo -e "  ${DIM}Check logs with: picoclaw logs${NC}"
+                        printf "  ${RED}✘${NC} Gateway failed to start\n"
+                        printf "  ${DIM}Check logs with: picoclaw logs${NC}\n"
                     fi
                 else
-                    echo -e "  ${DIM}Start later with: picoclaw start${NC}"
+                    printf "  ${DIM}Start later with: picoclaw start${NC}\n"
                 fi
             fi
         else
-            echo -e "  ${DIM}No systemd service configured.${NC}"
-            echo -e "  ${DIM}Run manually: picoclaw gateway${NC}"
-            echo -e "  ${DIM}Or in background: nohup picoclaw gateway &${NC}"
+            printf "  ${DIM}No systemd service configured.${NC}\n"
+            printf "  ${DIM}Run manually: picoclaw gateway${NC}\n"
+            printf "  ${DIM}Or in background: nohup picoclaw gateway &${NC}\n"
         fi
     fi
 }
@@ -7232,23 +7809,51 @@ REBOOTEOF
 # MAIN
 # ════════════════════════════════════════════════
 main() {
+    local config_file=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --help|-h)
+                show_usage
+                ;;
+            --config)
+                if [[ -z "${2:-}" ]]; then
+                    printf '%s\n' "${RED}✘ --config requires a file path${NC}" >&2
+                    exit 1
+                fi
+                config_file="$2"
+                shift 2
+                ;;
+            *)
+                printf '%s\n' "${RED}✘ Unknown option: $1${NC}" >&2
+                printf '%s\n' "Run 'bash atlas-install.sh --help' for usage" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -n "$config_file" ]]; then
+        parse_config "$config_file"
+        CONFIG_LOADED=true
+    fi
+
     banner
     preflight
     resolve_picoclaw_latest
     wizard
-    install_system            # 1/13: apt update + upgrade + packages + Node.js
-    optimize_system           # 2/13: deep performance optimization
-    install_go                # 3/13: Go 1.26.0 (source build only)
-    install_picoclaw          # 4/13: binary or source → picoclaw.bin
-    init_picoclaw             # 5/13: onboard (creates workspace templates)
-    install_atlas_skills      # 6/13: Atlas skills repository (dynamic discovery)
-    write_config              # 7/13: overwrite config.json with wizard values + backup.conf + ftp.conf + whatsapp.conf + ollama.conf
-    install_whatsapp_bridge   # 8/13: WhatsApp Baileys/Node.js bridge + auto QR login
-    install_ollama            # 8.5/13: Ollama local LLM server (optional)
-    install_ftp_server        # 9/13: vsftpd FTP server (optional)
-    setup_systemd             # 10/13: service + watchdog + cron + auto-backup cron
-    initial_backup            # 11/13: ask user for initial backup snapshot
-    install_extras            # 12/13: unified picoclaw wrapper + login banner
+    install_system            # 1/14: apt update + upgrade + packages + Node.js
+    optimize_system           # 2/14: deep performance optimization
+    install_go                # 3/14: Go 1.26.0 (source build only)
+    install_picoclaw          # 4/14: binary or source → picoclaw.bin
+    init_picoclaw             # 5/14: onboard (creates workspace templates)
+    install_atlas_skills      # 6/14: Atlas skills repository (dynamic discovery)
+    write_config              # 7/14: overwrite config.json with wizard values + backup.conf + ftp.conf + whatsapp.conf + ollama.conf
+    install_whatsapp_bridge   # 8/14: WhatsApp Baileys/Node.js bridge + auto QR login
+    install_ollama            # 9/14: Ollama local LLM server (optional)
+    install_ftp_server        # 10/14: vsftpd FTP server (optional)
+    setup_systemd             # 11/14: service + watchdog + cron + auto-backup cron
+    install_extras            # 12/14: unified picoclaw wrapper + login banner
+    initial_backup            # 13/14: ask user for initial backup snapshot
     verify
     final
 }
