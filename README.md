@@ -13,7 +13,7 @@ Connects LLM providers (OpenRouter, OpenAI, Gemini, Groq, Zhipu, Ollama, vLLM) t
 **SSH into your Debian 13 server as root** and run:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/pr0ace/atlas/master/atlas-install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/pr0ace/atlas-install/master/atlas-install.sh)
 ```
 
 That's it. The interactive wizard handles everything else.
