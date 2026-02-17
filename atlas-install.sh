@@ -4,7 +4,7 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v1.0.6
+#  Version: v1.0.7
 #  Upstream: sipeed/picoclaw
 #  License: Proprietary (see LICENSE file)
 #
@@ -442,7 +442,8 @@ parse_config() {
                      SETUP_ATLAS SETUP_OLLAMA FTP_TLS GROQ_EXTRA_ENABLED \
                      BRAVE_ENABLED FEISHU_ENABLED MAIXCAM_ENABLED; do
         local -n _bref="$_bool_var" 2>/dev/null || continue
-        case "${_bref,,}" in
+        local _bval="${_bref:-false}"
+        case "${_bval,,}" in
             true|yes|y|1) _bref="true" ;;
             *)            _bref="false" ;;
         esac
@@ -1118,53 +1119,53 @@ wizard() {
 
     # ── 14. Summary ──
     step "14/14" "Review & Confirm"
-    printf "\n  ${BOLD}Summary${NC}\n"
-    printf "  Install:     ${INSTALL_FROM}\n"
-    printf "  Performance: ${SETUP_PERFORMANCE}\n"
+    printf '%s\n' "  ${BOLD}Summary${NC}"
+    printf '%s\n' "  Install:     ${INSTALL_FROM}"
+    printf '%s\n' "  Performance: ${SETUP_PERFORMANCE}"
     if [[ "$SETUP_PERFORMANCE" == "true" ]]; then
-        printf "               ${YELLOW}→ mandatory reboot after installation${NC}\n"
+        printf '%s\n' "               ${YELLOW}→ mandatory reboot after installation${NC}"
     fi
-    printf "  Provider:    ${LLM_PROVIDER} → ${BOLD}${LLM_MODEL}${NC}\n"
-    if [[ -n "$LLM_API_BASE" ]]; then printf "  API base:    ${LLM_API_BASE}\n"; fi
+    printf '%s\n' "  Provider:    ${LLM_PROVIDER} → ${BOLD}${LLM_MODEL}${NC}"
+    if [[ -n "$LLM_API_BASE" ]]; then printf '%s\n' "  API base:    ${LLM_API_BASE}"; fi
     if [[ "$SETUP_OLLAMA" == "true" ]]; then
-        printf "  Ollama:      ${GREEN}enabled${NC} (model: ${BOLD}${OLLAMA_MODEL}${NC}, ctx: ${OLLAMA_NUM_CTX})\n"
-        printf "               ${DIM}API: ${OLLAMA_API_BASE} (routed via vllm slot)${NC}\n"
-        printf "               ${YELLOW}→ model download ~0.4-5GB after installation${NC}\n"
+        printf '%s\n' "  Ollama:      ${GREEN}enabled${NC} (model: ${BOLD}${OLLAMA_MODEL}${NC}, ctx: ${OLLAMA_NUM_CTX})"
+        printf '%s\n' "               ${DIM}API: ${OLLAMA_API_BASE} (routed via vllm slot)${NC}"
+        printf '%s\n' "               ${YELLOW}→ model download ~0.4-5GB after installation${NC}"
     fi
-    if [[ -n "$GROQ_EXTRA_KEY" ]]; then printf "  Groq voice:  configured\n"; fi
-    if [[ -n "$BRAVE_API_KEY" ]]; then printf "  Brave:       configured\n"; fi
-    printf "  Telegram:    ${TG_ENABLED}\n"
+    if [[ -n "$GROQ_EXTRA_KEY" ]]; then printf '%s\n' "  Groq voice:  configured"; fi
+    if [[ -n "$BRAVE_API_KEY" ]]; then printf '%s\n' "  Brave:       configured"; fi
+    printf '%s\n' "  Telegram:    ${TG_ENABLED}"
     if [[ "$TG_ENABLED" == "true" && -n "$TG_USERNAME" ]]; then
-        printf "               ${DIM}user: ${TG_USER_ID}|${TG_USERNAME}${NC}\n"
+        printf '%s\n' "               ${DIM}user: ${TG_USER_ID}|${TG_USERNAME}${NC}"
     fi
-    printf "  Discord:     ${DC_ENABLED}\n"
+    printf '%s\n' "  Discord:     ${DC_ENABLED}"
     if [[ "$DC_ENABLED" == "true" && -n "$DC_USERNAME" ]]; then
-        printf "               ${DIM}user: ${DC_USER_ID}|${DC_USERNAME}${NC}\n"
+        printf '%s\n' "               ${DIM}user: ${DC_USER_ID}|${DC_USERNAME}${NC}"
     fi
-    printf "  WhatsApp:    ${WA_ENABLED}\n"
+    printf '%s\n' "  WhatsApp:    ${WA_ENABLED}"
     if [[ "$WA_ENABLED" == "true" ]]; then
-        printf "               ${DIM}bridge: ${WA_BRIDGE} (port ${WA_BRIDGE_PORT})${NC}\n"
+        printf '%s\n' "               ${DIM}bridge: ${WA_BRIDGE} (port ${WA_BRIDGE_PORT})${NC}"
         if [[ -n "$WA_USER_ID" ]]; then
-            printf "               ${DIM}user: ${WA_USER_ID}${NC}\n"
+            printf '%s\n' "               ${DIM}user: ${WA_USER_ID}${NC}"
         fi
-        printf "               ${YELLOW}→ QR login will be launched automatically during install${NC}\n"
+        printf '%s\n' "               ${YELLOW}→ QR login will be launched automatically during install${NC}"
     fi
-    printf "  Feishu:      ${FS_ENABLED}\n"
-    printf "  MaixCAM:     ${MC_ENABLED}\n"
-    printf "  Gateway:     ${GW_HOST}:${GW_PORT}\n"
+    printf '%s\n' "  Feishu:      ${FS_ENABLED}"
+    printf '%s\n' "  MaixCAM:     ${MC_ENABLED}"
+    printf '%s\n' "  Gateway:     ${GW_HOST}:${GW_PORT}"
     if [[ "$SETUP_FTP" == "true" ]]; then
-        printf "  FTP:         ${GREEN}enabled${NC} (user: ${FTP_USER}, port: ${FTP_PORT}, TLS: ${FTP_TLS})\n"
+        printf '%s\n' "  FTP:         ${GREEN}enabled${NC} (user: ${FTP_USER}, port: ${FTP_PORT}, TLS: ${FTP_TLS})"
     else
-        printf "  FTP:         disabled\n"
+        printf '%s\n' "  FTP:         disabled"
     fi
-    printf "  Systemd:     ${SETUP_SYSTEMD}\n"
+    printf '%s\n' "  Systemd:     ${SETUP_SYSTEMD}"
     if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
-        printf "  Backup:      every ${BACKUP_INTERVAL_DAYS} days, keep last ${BACKUP_MAX_KEEP}\n"
+        printf '%s\n' "  Backup:      every ${BACKUP_INTERVAL_DAYS} days, keep last ${BACKUP_MAX_KEEP}"
     else
-        printf "  Backup:      manual only (picoclaw backup)\n"
+        printf '%s\n' "  Backup:      manual only (picoclaw backup)"
     fi
-    printf "  Atlas:       ${SETUP_ATLAS}\n"
-    printf "  User:        ${BOLD}root (full access)${NC}\n"
+    printf '%s\n' "  Atlas:       ${SETUP_ATLAS}"
+    printf '%s\n' "  User:        ${BOLD}root (full access)${NC}"
     echo ""
     ask_yn "Install now?" "y" || { echo "  Cancelled."; exit 0; }
 }
@@ -3587,6 +3588,8 @@ _json_escape() {
     printf '%s' "$s"
 }
 
+_shell_escape() { printf '%s' "${1//\'/\'\"\'\"\'}"; }
+
 _extract_atlas_category() {
     local origin_file="$1"
     local cat="unknown"
@@ -3629,11 +3632,13 @@ _load_ftp_conf() {
 }
 
 _save_ftp_conf() {
+    local safe_ftp_user
+    safe_ftp_user=$(_shell_escape "${FTP_USER}")
     cat > "$FTP_CONF" << FTPCONF
 # PicoClaw FTP Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 FTP_ENABLED='${FTP_ENABLED}'
-FTP_USER='${FTP_USER}'
+FTP_USER='${safe_ftp_user}'
 FTP_PORT='${FTP_PORT}'
 FTP_PASV_MIN='${FTP_PASV_MIN}'
 FTP_PASV_MAX='${FTP_PASV_MAX}'
@@ -3654,15 +3659,19 @@ _load_wa_conf() {
 }
 
 _save_wa_conf() {
+    local safe_wa_bridge_dir safe_wa_auth_dir safe_wa_user_id
+    safe_wa_bridge_dir=$(_shell_escape "${WA_BRIDGE_DIR}")
+    safe_wa_auth_dir=$(_shell_escape "${WA_BRIDGE_AUTH_DIR}")
+    safe_wa_user_id=$(_shell_escape "${WA_USER_ID}")
     cat > "$WA_CONF" << WACONF
 # PicoClaw WhatsApp Bridge Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 WA_ENABLED='${WA_ENABLED}'
 WA_BRIDGE_PORT='${WA_BRIDGE_PORT}'
-WA_BRIDGE_DIR='${WA_BRIDGE_DIR}'
-WA_BRIDGE_AUTH_DIR='${WA_BRIDGE_AUTH_DIR}'
+WA_BRIDGE_DIR='${safe_wa_bridge_dir}'
+WA_BRIDGE_AUTH_DIR='${safe_wa_auth_dir}'
 WA_BRIDGE_SERVICE='${WA_BRIDGE_SERVICE}'
-WA_USER_ID='${WA_USER_ID}'
+WA_USER_ID='${safe_wa_user_id}'
 WACONF
 }
 
@@ -3670,7 +3679,7 @@ _load_ollama_conf() {
     OLLAMA_ENABLED="false"
     OLLAMA_MODEL=""
     OLLAMA_CUSTOM_MODEL=""
-    OLLAMA_NUM_CTX="4096"
+    OLLAMA_NUM_CTX="8192"
     OLLAMA_HOST="127.0.0.1"
     OLLAMA_PORT="11434"
     if [[ -f "$OLLAMA_CONF" ]]; then
@@ -3679,14 +3688,18 @@ _load_ollama_conf() {
 }
 
 _save_ollama_conf() {
+    local safe_ollama_model safe_ollama_custom safe_ollama_host
+    safe_ollama_model=$(_shell_escape "${OLLAMA_MODEL}")
+    safe_ollama_custom=$(_shell_escape "${OLLAMA_CUSTOM_MODEL}")
+    safe_ollama_host=$(_shell_escape "${OLLAMA_HOST}")
     cat > "$OLLAMA_CONF" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Updated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 OLLAMA_ENABLED='${OLLAMA_ENABLED}'
-OLLAMA_MODEL='${OLLAMA_MODEL}'
-OLLAMA_CUSTOM_MODEL='${OLLAMA_CUSTOM_MODEL}'
+OLLAMA_MODEL='${safe_ollama_model}'
+OLLAMA_CUSTOM_MODEL='${safe_ollama_custom}'
 OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
-OLLAMA_HOST='${OLLAMA_HOST}'
+OLLAMA_HOST='${safe_ollama_host}'
 OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
 }
@@ -3879,7 +3892,7 @@ cmd_status() {
     if [[ -x "$BIN" ]]; then
         local ver=""
         ver=$("$BIN" version 2>/dev/null) || ver="unknown"
-        printf "  Binary:    ${G}●${N} ${BIN} (${ver}, $(du -h "$BIN" | awk '{print $1}'))\n"
+        printf "  Binary:    ${G}●${N} %s (%s, %s)\n" "$BIN" "$ver" "$(du -h "$BIN" | awk '{print $1}')"
     else
         printf "  Binary:    ${R}● missing${N}\n"
     fi
@@ -3888,7 +3901,7 @@ cmd_status() {
         local since="" pid=""
         since=$(systemctl show "$SVC" --property=ActiveEnterTimestamp --value 2>/dev/null) || true
         pid=$(systemctl show "$SVC" --property=MainPID --value 2>/dev/null) || true
-        printf "  Gateway:   ${G}● running${N}  PID ${pid}  since ${since}\n"
+        printf "  Gateway:   ${G}● running${N}  PID %s  since %s\n" "$pid" "$since"
     elif systemctl is-enabled --quiet "$SVC" 2>/dev/null; then
         printf "  Gateway:   ${R}● stopped${N} (enabled — run: picoclaw start)\n"
     else
@@ -3912,7 +3925,7 @@ cmd_status() {
         cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null) || cc="?"
         local swap_val=""
         swap_val=$(sysctl -n vm.swappiness 2>/dev/null) || swap_val="?"
-        printf "  Perf:      ${G}● optimized${N} (BBR=${cc}, swappiness=${swap_val})\n"
+        printf "  Perf:      ${G}● optimized${N} (BBR=%s, swappiness=%s)\n" "$cc" "$swap_val"
     else
         printf "  Perf:      ${D}○ not optimized${N}\n"
     fi
@@ -3928,7 +3941,7 @@ cmd_status() {
             if [[ -n "$ollama_pid" && "$ollama_pid" != "0" ]]; then
                 ollama_ram=$(ps -o rss= -p "$ollama_pid" 2>/dev/null | awk '{printf "%.0fMB", $1/1024}') || ollama_ram="?"
             fi
-            printf "  Ollama:    ${G}● running${N} PID ${ollama_pid} (${ollama_model_display}, ${ollama_ram} RAM)\n"
+            printf "  Ollama:    ${G}● running${N} PID %s (%s, %s RAM)\n" "$ollama_pid" "$ollama_model_display" "$ollama_ram"
         else
             printf "  Ollama:    ${R}● stopped${N} (enabled — run: picoclaw ollama start)\n"
         fi
@@ -3950,13 +3963,13 @@ cmd_status() {
             if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
                 wa_linked="linked"
             fi
-            printf "  WhatsApp:  ${G}● running${N} PID ${wa_pid} (port ${WA_BRIDGE_PORT}, ${wa_linked})\n"
+            printf "  WhatsApp:  ${G}● running${N} PID %s (port %s, %s)\n" "$wa_pid" "$WA_BRIDGE_PORT" "$wa_linked"
         else
             local wa_linked="unlinked"
             if [[ -f "${WA_BRIDGE_AUTH_DIR}/creds.json" ]]; then
                 wa_linked="linked"
             fi
-            printf "  WhatsApp:  ${R}● stopped${N} (${wa_linked} — run: picoclaw whatsapp start)\n"
+            printf "  WhatsApp:  ${R}● stopped${N} (%s — run: picoclaw whatsapp start)\n" "$wa_linked"
         fi
     else
         if [[ -d "/opt/picoclaw-whatsapp-bridge" ]]; then
@@ -3970,7 +3983,7 @@ cmd_status() {
     _load_ftp_conf
     if [[ "$FTP_ENABLED" == "true" ]]; then
         if systemctl is-active --quiet vsftpd 2>/dev/null; then
-            printf "  FTP:       ${G}● running${N} (${FTP_USER}@:${FTP_PORT}, TLS=${FTP_TLS})\n"
+            printf "  FTP:       ${G}● running${N} (%s@:%s, TLS=%s)\n" "$FTP_USER" "$FTP_PORT" "$FTP_TLS"
         else
             printf "  FTP:       ${R}● stopped${N} (enabled — run: picoclaw ftp start)\n"
         fi
@@ -4005,9 +4018,9 @@ cmd_status() {
     local bk_count=0
     bk_count=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l) || true
     if [[ -f /etc/cron.d/picoclaw-autobackup ]]; then
-        printf "  Backup:    ${G}● auto${N} every ${BACKUP_INTERVAL_DAYS}d, ${bk_count}/${BACKUP_MAX_KEEP} snapshots\n"
+        printf "  Backup:    ${G}● auto${N} every %sd, %s/%s snapshots\n" "$BACKUP_INTERVAL_DAYS" "$bk_count" "$BACKUP_MAX_KEEP"
     elif [[ $bk_count -gt 0 ]]; then
-        printf "  Backup:    ${G}● manual${N} ${bk_count} snapshot(s) in ${BACKUP_DIR}\n"
+        printf "  Backup:    ${G}● manual${N} %s snapshot(s) in %s\n" "$bk_count" "$BACKUP_DIR"
     else
         printf "  Backup:    ${D}○ none${N}\n"
     fi
@@ -4042,8 +4055,8 @@ cmd_status() {
         elif [[ -n "$vl_key" || -n "$vl_base" ]]; then prov="vllm"
         fi
 
-        printf "  Provider:  ${B}${prov}${N}\n"
-        printf "  Model:     ${C}${m}${N}\n"
+        printf "  Provider:  ${B}%s${N}\n" "$prov"
+        printf "  Model:     ${C}%s${N}\n" "$m"
         echo ""
 
         for ch in telegram discord whatsapp feishu maixcam; do
@@ -5027,6 +5040,9 @@ _backup_run() {
     if [[ -x "$BIN" ]]; then
         pc_ver=$("$BIN" version 2>/dev/null) || pc_ver="unknown"
     fi
+    pc_ver=$(_json_escape "$pc_ver")
+    local safe_hostname
+    safe_hostname=$(_json_escape "$(hostname 2>/dev/null || echo 'unknown')")
     local snap_size
     snap_size=$(du -sh "$snap_dir" 2>/dev/null | awk '{print $1}') || snap_size="unknown"
 
@@ -5037,7 +5053,7 @@ _backup_run() {
   "timestamp_epoch": $(date +%s),
   "trigger": "${trigger}",
   "picoclaw_version": "${pc_ver}",
-  "hostname": "$(hostname 2>/dev/null || echo 'unknown')",
+  "hostname": "${safe_hostname}",
   "arch": "$(uname -m)",
   "size": "${snap_size}",
   "performance_optimized": $(if [[ -f /etc/sysctl.d/99-picoclaw-performance.conf ]]; then echo "true"; else echo "false"; fi),
@@ -6974,6 +6990,8 @@ initial_backup() {
     if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
         info "Automatic backups enabled — creating initial snapshot..."
         _do_backup "initial"
+    elif [[ "$CONFIG_LOADED" == "true" ]]; then
+        info "Auto-backup disabled — skipping initial backup"
     else
         if ask_yn "Create initial backup now?" "y"; then
             _do_backup "initial"
