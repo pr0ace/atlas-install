@@ -4,9 +4,9 @@
 #  Target: Debian 13 (Trixie) — Root access required
 # ═══════════════════════════════════════════════════════════════
 #
-#  Version: v1.0.5
+#  Version: v1.0.6
 #  Upstream: sipeed/picoclaw
-#  License: MIT (see LICENSE file)
+#  License: Proprietary (see LICENSE file)
 #
 #  Usage:
 #    bash atlas-install.sh                   # Interactive wizard
@@ -15,8 +15,6 @@
 #  Features: Multi-provider LLM gateway, Telegram/Discord/WhatsApp
 #            channels, FTP server, WhatsApp bridge, Ollama support,
 #            auto-backup, performance optimization, Atlas skills
-#
-#  Full changelog: See CHANGELOG.md
 # ═══════════════════════════════════════════════════════════════
 
 set -eEuo pipefail
@@ -222,6 +220,14 @@ json_escape() {
 }
 
 # ════════════════════════════════════════════════
+# SHELL ESCAPE — sanitize values for single-quoted source'd conf files
+# Transforms ' into '"'"' (end quote, literal quote, restart quote)
+# ════════════════════════════════════════════════
+shell_escape() {
+    printf '%s' "${1//\'/\'\"\'\"\'}"
+}
+
+# ════════════════════════════════════════════════
 # NODE.JS VERSION HELPER
 # Returns the major version number of the installed Node.js (e.g. "20")
 # ════════════════════════════════════════════════
@@ -412,6 +418,10 @@ parse_config() {
                 # Unquoted: strip inline comments (space + #)
                 value="${value%%[[:space:]]\#*}"
                 value="${value%"${value##*[![:space:]]}"}"
+                # Re-check for quotes after comment stripping (handles "" # comment)
+                if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                    value="${BASH_REMATCH[1]}"
+                fi
             fi
 
             var_name="${key^^}"
@@ -455,6 +465,9 @@ parse_config() {
     [[ "$GW_PORT" =~ ^[0-9]+$ ]] || GW_PORT=18790
     [[ "$BRAVE_MAX_RESULTS" =~ ^[0-9]+$ ]] || BRAVE_MAX_RESULTS=5
     [[ "$MC_PORT" =~ ^[0-9]+$ ]] || MC_PORT=18790
+    [[ "$FTP_PORT" =~ ^[0-9]+$ ]] || FTP_PORT=21
+    [[ "$FTP_PASV_MIN" =~ ^[0-9]+$ ]] || FTP_PASV_MIN=40000
+    [[ "$FTP_PASV_MAX" =~ ^[0-9]+$ ]] || FTP_PASV_MAX=40100
     [[ "$OLLAMA_NUM_CTX" =~ ^[0-9]+$ ]] || OLLAMA_NUM_CTX=8192
 
     success "Config loaded"
@@ -716,6 +729,15 @@ wizard() {
         fi
         if [[ -z "$LLM_MODEL" ]]; then
             die "Config error: llm_model is required"
+        fi
+
+        # Auto-link: ollama provider requires setup_ollama
+        if [[ "$LLM_PROVIDER" == "ollama" && "$SETUP_OLLAMA" != "true" ]]; then
+            info "llm_provider is 'ollama' — enabling setup_ollama automatically"
+            SETUP_OLLAMA=true
+        fi
+        if [[ "$LLM_PROVIDER" == "ollama" && -z "$OLLAMA_MODEL" ]]; then
+            OLLAMA_MODEL="$LLM_MODEL"
         fi
 
         return 0
@@ -2560,11 +2582,13 @@ BKCONF
     success "Backup config → ${BACKUP_META_FILE}"
 
     # ── Write FTP configuration file ──
+    local safe_ftp_user
+    safe_ftp_user="$(shell_escape "$FTP_USER")"
     cat > "$FTP_CONF_FILE" << FTPCONF
 # PicoClaw FTP Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 FTP_ENABLED='${SETUP_FTP}'
-FTP_USER='${FTP_USER}'
+FTP_USER='${safe_ftp_user}'
 FTP_PORT='${FTP_PORT}'
 FTP_PASV_MIN='${FTP_PASV_MIN}'
 FTP_PASV_MAX='${FTP_PASV_MAX}'
@@ -2573,26 +2597,33 @@ FTPCONF
     success "FTP config → ${FTP_CONF_FILE}"
 
     # ── Write WhatsApp configuration file ──
+    local safe_wa_bridge_dir safe_wa_auth_dir safe_wa_user_id
+    safe_wa_bridge_dir="$(shell_escape "$WA_BRIDGE_DIR")"
+    safe_wa_auth_dir="$(shell_escape "$WA_BRIDGE_AUTH_DIR")"
+    safe_wa_user_id="$(shell_escape "$WA_USER_ID")"
     cat > "$WA_CONF_FILE" << WACONF
 # PicoClaw WhatsApp Bridge Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 WA_ENABLED='${WA_ENABLED}'
 WA_BRIDGE_PORT='${WA_BRIDGE_PORT}'
-WA_BRIDGE_DIR='${WA_BRIDGE_DIR}'
-WA_BRIDGE_AUTH_DIR='${WA_BRIDGE_AUTH_DIR}'
+WA_BRIDGE_DIR='${safe_wa_bridge_dir}'
+WA_BRIDGE_AUTH_DIR='${safe_wa_auth_dir}'
 WA_BRIDGE_SERVICE='${WA_BRIDGE_SERVICE}'
-WA_USER_ID='${WA_USER_ID}'
+WA_USER_ID='${safe_wa_user_id}'
 WACONF
     success "WhatsApp config → ${WA_CONF_FILE}"
 
     # ── Write Ollama configuration file ──
+    local safe_ollama_model safe_ollama_host
+    safe_ollama_model="$(shell_escape "$OLLAMA_MODEL")"
+    safe_ollama_host="$(shell_escape "$OLLAMA_HOST")"
     cat > "$OLLAMA_CONF_FILE" << OLLAMACONF
 # PicoClaw Ollama Configuration
 # Written by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 OLLAMA_ENABLED='${SETUP_OLLAMA}'
-OLLAMA_MODEL='${OLLAMA_MODEL}'
+OLLAMA_MODEL='${safe_ollama_model}'
 OLLAMA_NUM_CTX='${OLLAMA_NUM_CTX}'
-OLLAMA_HOST='${OLLAMA_HOST}'
+OLLAMA_HOST='${safe_ollama_host}'
 OLLAMA_PORT='${OLLAMA_PORT}'
 OLLAMACONF
     success "Ollama config → ${OLLAMA_CONF_FILE}"
