@@ -88,6 +88,9 @@ OLLAMA_API_BASE="http://127.0.0.1:11434/v1"
 
 # ════════════════════════════════════════════════
 # WIZARD MODEL LISTS
+# Curated subset for first-time install wizard.
+# CLI wrapper has a broader list for model switching
+# after installation (see CLI_MODELS_* in the heredoc).
 # ════════════════════════════════════════════════
 WIZARD_MODELS_OPENROUTER=(
   "anthropic/claude-sonnet-4.5"    "latest Sonnet, best coding+agents"
@@ -195,13 +198,13 @@ BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 CK="${GREEN}✔${NC}"; XK="${RED}✘${NC}"; AR="${CYAN}➜${NC}"
 WN="${YELLOW}⚠${NC}"; IN="${BLUE}ℹ${NC}"
 
-step()      { printf "\n${BLUE}${BOLD}━━━ $1: $2 ━━━${NC}\n"; }
-info()      { printf "  ${IN} $1\n"; }
-success()   { printf "  ${CK} $1\n"; }
-warn()      { printf "  ${WN} $1\n"; }
-die()       { printf "  ${XK} $1\n"; exit 1; }
+step()      { printf '%s\n' "${BLUE}${BOLD}━━━ $1: $2 ━━━${NC}"; }
+info()      { printf '%s\n' "  ${IN} $1"; }
+success()   { printf '%s\n' "  ${CK} $1"; }
+warn()      { printf '%s\n' "  ${WN} $1"; }
+die()       { printf '%s\n' "  ${XK} $1"; exit 1; }
 separator() {
-  printf "\n${DIM}  ──────────────────────────────────────────────${NC}\n"
+    printf '%s\n' "${DIM}  ──────────────────────────────────────────────${NC}"
 }
 
 # ════════════════════════════════════════════════
@@ -209,27 +212,15 @@ separator() {
 # Escapes \ and " and strips control characters
 # ════════════════════════════════════════════════
 json_escape() {
-    local s="$1" result="" i len
-    len=${#s}
-
-    # Remove control characters character by character (pure bash)
-    for (( i=0; i<len; i++ )); do
-        local c="${s:i:1}"
-        case "$c" in
-            $'\x00'|$'\x01'|$'\x02'|$'\x03'|$'\x04'|$'\x05'|$'\x06'|$'\x07'|$'\x08'|$'\x0b'|$'\x0c'|$'\x0e'|$'\x0f'|$'\x10'|$'\x11'|$'\x12'|$'\x13'|$'\x14'|$'\x15'|$'\x16'|$'\x17'|$'\x18'|$'\x19'|$'\x1a'|$'\x1b'|$'\x1c'|$'\x1d'|$'\x1e'|$'\x1f')
-                # Skip these control characters
-                ;;
-            *)
-                result+="$c"
-                ;;
-        esac
-    done
-
-    # Escape backslashes and double quotes
-    result="${result//\\/\\\\}"
-    result="${result//\"/\\\"}"
-
-    printf '%s' "$result"
+    local s="$1"
+    # Strip control characters (0x00-0x08, 0x0b, 0x0c, 0x0e-0x1f) via tr.
+    # Single external call is faster than a pure-bash character loop for
+    # string-level filtering. Keeps tab (0x09), newline (0x0a), CR (0x0d).
+    s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')
+    # Escape backslashes and double quotes (pure bash, no fork)
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '%s' "$s"
 }
 
 # ════════════════════════════════════════════════
@@ -266,11 +257,14 @@ ask() {
 }
 
 ask_yn() {
-    local prompt="$1" default="${2:-y}"
+    local prompt="$1" default="${2:-y}" var_name_upper="${3:-}"
 
-    local var_name_upper="${prompt// /_}"
-    var_name_upper="${var_name_upper//[^a-zA-Z0-9_]/}"
-    var_name_upper="${var_name_upper^^}"
+    # If no explicit config key provided, derive from prompt (fallback only)
+    if [[ -z "$var_name_upper" ]]; then
+        var_name_upper="${prompt// /_}"
+        var_name_upper="${var_name_upper//[^a-zA-Z0-9_]/}"
+        var_name_upper="${var_name_upper^^}"
+    fi
 
     local -n existing_bool="${var_name_upper}" 2>/dev/null || true
     if [[ -n "${existing_bool:-}" ]]; then
@@ -318,73 +312,99 @@ ask_menu() {
 # USAGE — show help text
 # ════════════════════════════════════════════════
 show_usage() {
-  printf '%s\n' "Atlas Installer — Full-featured PicoClaw Gateway Setup"
-  printf '%s\n' ""
-  printf '%s\n' "Usage:"
-  printf '%s\n' "  bash atlas-install.sh                    # Interactive wizard"
-  printf '%s\n' "  bash atlas-install.sh --config <yaml>    # Non-interactive install"
-  printf '%s\n' "  bash atlas-install.sh --help             # Show this help"
-  printf '%s\n' ""
-  printf '%s\n' "Options:"
-  printf '%s\n' "  --config <file>    Path to YAML config file for non-interactive install"
-  printf '%s\n' "  --help             Display this help message"
-  printf '%s\n' ""
-  printf '%s\n' "Config file format (YAML):"
-  printf '%s\n' "  install_from: binary              # or 'source'"
-  printf '%s\n' "  setup_performance: true"
-  printf '%s\n' "  llm_provider: openrouter"
-  printf '%s\n' "  llm_api_key: sk-or-v1-..."
-  printf '%s\n' "  llm_model: anthropic/claude-sonnet-4.5"
-  printf '%s\n' "  max_tokens: 8192"
-  printf '%s\n' "  temperature: 0.7"
-  printf '%s\n' "  tg_enabled: true"
-  printf '%s\n' "  tg_token: 123456:ABC..."
-  printf '%s\n' "  tg_user_id: 5323045369"
-  printf '%s\n' "  # ... (see documentation for full list)"
-  printf '%s\n' ""
-  exit 0
+    printf '%s\n' "Atlas Installer — Full-featured PicoClaw Gateway Setup"
+    printf '%s\n' ""
+    printf '%s\n' "Usage:"
+    printf '%s\n' "  bash atlas-install.sh                    # Interactive wizard"
+    printf '%s\n' "  bash atlas-install.sh --config <yaml>    # Non-interactive install"
+    printf '%s\n' "  bash atlas-install.sh --help             # Show this help"
+    printf '%s\n' ""
+    printf '%s\n' "Options:"
+    printf '%s\n' "  --config <file>    Path to YAML config file for non-interactive install"
+    printf '%s\n' "  --help             Display this help message"
+    printf '%s\n' ""
+    printf '%s\n' "Config file format (YAML):"
+    printf '%s\n' "  install_from: binary              # or 'source'"
+    printf '%s\n' "  setup_performance: true"
+    printf '%s\n' "  llm_provider: openrouter"
+    printf '%s\n' "  llm_api_key: sk-or-v1-..."
+    printf '%s\n' "  llm_model: anthropic/claude-sonnet-4.5"
+    printf '%s\n' "  max_tokens: 8192"
+    printf '%s\n' "  temperature: 0.7"
+    printf '%s\n' "  tg_enabled: true"
+    printf '%s\n' "  tg_token: 123456:ABC..."
+    printf '%s\n' "  tg_user_id: 5323045369"
+    printf '%s\n' "  # ... (see documentation for full list)"
+    printf '%s\n' ""
+    exit 0
 }
 
 # ════════════════════════════════════════════════
 # YAML PARSER — simple key: value extraction
 # ════════════════════════════════════════════════
 parse_config() {
-  local config_file="$1"
+    local config_file="$1"
 
-  if [[ ! -f "$config_file" ]]; then
-    printf '%s\n' "${RED}✘ Config file not found: ${config_file}${NC}" >&2
-    exit 1
-  fi
-
-  info "Loading config from: ${config_file}"
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%%\#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-
-    if [[ -z "$line" ]]; then
-      continue
+    if [[ ! -f "$config_file" ]]; then
+        printf '%s\n' "${RED}✘ Config file not found: ${config_file}${NC}" >&2
+        exit 1
     fi
 
-    if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)$ ]]; then
-      local key="${BASH_REMATCH[1]}"
-      local value="${BASH_REMATCH[2]}"
+    # Allowlist of permitted config keys (uppercase). Only user-facing config
+    # variables are accepted — internal constants like PICOCLAW_DL, checksums,
+    # and download URLs are never overridable from config files.
+    local -A ALLOWED_KEYS=(
+        [INSTALL_FROM]=1 [SETUP_PERFORMANCE]=1
+        [LLM_PROVIDER]=1 [LLM_API_KEY]=1 [LLM_MODEL]=1
+        [LLM_API_BASE]=1 [MAX_TOKENS]=1 [TEMPERATURE]=1
+        [GROQ_API_KEY]=1 [GROQ_EXTRA_ENABLED]=1
+        [BRAVE_ENABLED]=1 [BRAVE_API_KEY]=1 [BRAVE_MAX_RESULTS]=1
+        [TG_ENABLED]=1 [TG_TOKEN]=1 [TG_USER_ID]=1 [TG_USERNAME]=1
+        [DC_ENABLED]=1 [DC_TOKEN]=1 [DC_USER_ID]=1 [DC_USERNAME]=1
+        [WA_ENABLED]=1
+        [FEISHU_ENABLED]=1 [FEISHU_APP_ID]=1 [FEISHU_APP_SECRET]=1
+        [MAIXCAM_ENABLED]=1 [MAIXCAM_SERIAL]=1
+        [SETUP_FTP]=1 [FTP_USER]=1 [FTP_PASS]=1 [FTP_PORT]=1
+        [FTP_PASV_MIN]=1 [FTP_PASV_MAX]=1 [FTP_TLS]=1
+        [SETUP_SYSTEMD]=1 [SETUP_AUTOBACKUP]=1 [SETUP_ATLAS]=1
+        [SETUP_OLLAMA]=1 [OLLAMA_MODEL]=1 [OLLAMA_NUM_CTX]=1
+        [GW_HOST]=1 [GW_PORT]=1
+    )
 
-      value="${value#"${value%%[![:space:]]*}"}"
-      value="${value%"${value##*[![:space:]]}"}"
+    info "Loading config from: ${config_file}"
 
-      if [[ "$value" =~ ^[\"\'](.*)[\"\']$ ]]; then
-        value="${BASH_REMATCH[1]}"
-      fi
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%\#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
 
-      local var_name="${key^^}"
+        if [[ -z "$line" ]]; then
+            continue
+        fi
 
-      printf -v "$var_name" '%s' "$value"
-    fi
-  done < "$config_file"
+        if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:[[:space:]]*(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
 
-  success "Config loaded"
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+
+            if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            fi
+
+            local var_name="${key^^}"
+
+            if [[ -z "${ALLOWED_KEYS[$var_name]+x}" ]]; then
+                warn "Ignoring unknown config key: ${key}"
+                continue
+            fi
+
+            printf -v "$var_name" '%s' "$value"
+        fi
+    done < "$config_file"
+
+    success "Config loaded"
 }
 
 # ════════════════════════════════════════════════
@@ -642,7 +662,7 @@ wizard() {
     echo ""
     printf "  ${YELLOW}${BOLD}Note:${NC} ${YELLOW}Selecting this will require a mandatory reboot at the end${NC}\n"
     printf "  ${YELLOW}of installation to fully activate all kernel-level optimizations.${NC}\n"
-    if ask_yn "Optimize system performance?" "y"; then
+    if ask_yn "Optimize system performance?" "y" "SETUP_PERFORMANCE"; then
         SETUP_PERFORMANCE=true
     else
         SETUP_PERFORMANCE=false
@@ -742,7 +762,7 @@ wizard() {
     if [[ "$LLM_PROVIDER" == "groq" ]]; then
         info "Already using Groq as primary — voice transcription included"
     else
-        if ask_yn "Add Groq key for voice transcription?" "n"; then
+        if ask_yn "Add Groq key for voice transcription?" "n" "GROQ_EXTRA_ENABLED"; then
             ask "Groq API key (https://console.groq.com)" GROQ_EXTRA_KEY "" true
         fi
     fi
@@ -752,7 +772,7 @@ wizard() {
     step "5/14" "Web Search (Optional)"
     printf "  ${DIM}Brave Search API — 2000 free queries/month${NC}\n"
     printf "  ${DIM}https://brave.com/search/api${NC}\n"
-    if ask_yn "Configure Brave Search?" "n"; then
+    if ask_yn "Configure Brave Search?" "n" "BRAVE_ENABLED"; then
         ask "API key" BRAVE_API_KEY "" true
         ask "Max results per query" BRAVE_MAX_RESULTS "5"
     fi
@@ -761,7 +781,7 @@ wizard() {
     # ── 6. Telegram ──
     step "6/14" "Telegram Bot"
     printf "  ${DIM}Control PicoClaw from your phone via Telegram.${NC}\n"
-    if ask_yn "Configure Telegram?" "y"; then
+    if ask_yn "Configure Telegram?" "y" "TG_ENABLED"; then
         TG_ENABLED=true
         printf "\n  ${DIM}Create: @BotFather → /newbot${NC}\n"
         printf "  ${DIM}Get ID: @userinfobot → your numeric ID${NC}\n"
@@ -778,7 +798,7 @@ wizard() {
     # ── 7. Discord ──
     step "7/14" "Discord Bot (Optional)"
     printf "  ${DIM}https://discord.com/developers/applications${NC}\n"
-    if ask_yn "Configure Discord?" "n"; then
+    if ask_yn "Configure Discord?" "n" "DC_ENABLED"; then
         DC_ENABLED=true
         printf "\n  ${DIM}Create app → Bot → Copy token${NC}\n"
         printf "  ${DIM}Enable MESSAGE CONTENT INTENT in Bot settings${NC}\n"
@@ -811,7 +831,7 @@ wizard() {
     printf "  ${YELLOW}to link your WhatsApp account. The QR scan is one-time; session persists.${NC}\n"
     printf "  ${DIM}Session can expire after ~14 days if your phone is offline.${NC}\n"
     echo ""
-    if ask_yn "Configure WhatsApp?" "n"; then
+    if ask_yn "Configure WhatsApp?" "n" "WA_ENABLED"; then
         WA_ENABLED=true
         ask "Bridge port" WA_BRIDGE_PORT "3001"
         while true; do
@@ -833,7 +853,7 @@ wizard() {
     fi
     echo ""
 
-    if ask_yn "Configure Feishu (Lark)?" "n"; then
+    if ask_yn "Configure Feishu (Lark)?" "n" "FEISHU_ENABLED"; then
         FS_ENABLED=true
         ask "App ID" FS_APP_ID ""
         ask "App Secret" FS_SECRET "" true
@@ -842,7 +862,7 @@ wizard() {
     fi
     echo ""
 
-    if ask_yn "Configure MaixCAM?" "n"; then
+    if ask_yn "Configure MaixCAM?" "n" "MAIXCAM_ENABLED"; then
         MC_ENABLED=true
         ask "Listen host" MC_HOST "0.0.0.0"
         ask "Listen port" MC_PORT "18790"
@@ -871,7 +891,7 @@ wizard() {
     printf "  ${YELLOW}⚠ The FTP user will have read/write access to the ENTIRE filesystem.${NC}\n"
     printf "  ${YELLOW}  Only enable this if you trust your network or use TLS + strong password.${NC}\n"
     echo ""
-    if ask_yn "Configure FTP server?" "y"; then
+    if ask_yn "Configure FTP server?" "y" "SETUP_FTP"; then
         SETUP_FTP=true
         echo ""
         ask "FTP username" FTP_USER "root"
@@ -901,7 +921,7 @@ wizard() {
         echo ""
         printf "  ${DIM}TLS encrypts FTP traffic. A self-signed certificate will be generated.${NC}\n"
         printf "  ${DIM}Recommended if FTP is exposed to the internet.${NC}\n"
-        if ask_yn "Enable TLS encryption?" "y"; then
+        if ask_yn "Enable TLS encryption?" "y" "FTP_TLS"; then
             FTP_TLS=true
         else
             FTP_TLS=false
@@ -912,7 +932,7 @@ wizard() {
     # ── 11. Systemd ──
     step "11/14" "24/7 Service"
     printf "  ${DIM}systemd service + watchdog timer + cron @reboot fallback${NC}\n"
-    if ask_yn "Enable 24/7 systemd service?" "y"; then
+    if ask_yn "Enable 24/7 systemd service?" "y" "SETUP_SYSTEMD"; then
         SETUP_SYSTEMD=true
     else
         SETUP_SYSTEMD=false
@@ -924,7 +944,7 @@ wizard() {
     printf "  ${DIM}Full snapshot of config, workspace, skills, binary, and systemd units${NC}\n"
     printf "  ${DIM}Stored in ${BACKUP_DIR}/backup_MMddyy_HHmmss/${NC}\n"
     printf "  ${DIM}Old backups are automatically purged beyond max retention count.${NC}\n"
-    if ask_yn "Enable automatic backups?" "y"; then
+    if ask_yn "Enable automatic backups?" "y" "SETUP_AUTOBACKUP"; then
         SETUP_AUTOBACKUP=true
         ask "Backup every N days" BACKUP_INTERVAL_DAYS "6"
         while true; do
@@ -962,7 +982,7 @@ wizard() {
     printf "  ${DIM}Nothing is hardcoded — any new skill added to the repository${NC}\n"
     printf "  ${DIM}will be automatically found and installed.${NC}\n"
     echo ""
-    if ask_yn "Install all Atlas skills?" "y"; then
+    if ask_yn "Install all Atlas skills?" "y" "SETUP_ATLAS"; then
         SETUP_ATLAS=true
     else
         SETUP_ATLAS=false
@@ -2097,6 +2117,8 @@ _atlas_install_via_git() {
                 | sed 's/^[[:space:]]*//' \
                 | head -c 80) || true
 
+            # Count top-level files only (not recursive). Acceptable trade-off
+            # to avoid forking find; most skills are single-directory.
             local file_count=0
             shopt -s nullglob dotglob
             local -a files=("$target_dir"/*)
@@ -3261,60 +3283,6 @@ ABEOF
 }
 
 # ════════════════════════════════════════════════
-# STEP 12: INITIAL BACKUP
-# ════════════════════════════════════════════════
-initial_backup() {
-    step "12/13" "Initial Backup"
-
-    printf "  ${DIM}Creating a snapshot of the freshly installed system.${NC}\n"
-    printf "  ${DIM}This serves as your recovery point if anything changes.${NC}\n"
-
-    if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
-        info "Automatic backups enabled — creating initial snapshot..."
-        _do_backup "initial"
-    else
-        if ask_yn "Create initial backup now?" "y"; then
-            _do_backup "initial"
-        else
-            info "Skipped — create one anytime with: picoclaw backup"
-        fi
-    fi
-}
-
-# ════════════════════════════════════════════════
-# BACKUP ENGINE — Delegates to CLI wrapper
-# ════════════════════════════════════════════════
-_do_backup() {
-    local trigger="${1:-manual}"
-
-    # Delegate to CLI wrapper if available (installed in step 11)
-    if [[ -x "$PICOCLAW_BIN" ]]; then
-        "$PICOCLAW_BIN" backup "$trigger"
-        return $?
-    fi
-
-    # Minimal fallback if CLI wrapper doesn't exist (should never happen)
-    warn "CLI wrapper not found — creating minimal backup fallback"
-    local timestamp
-    timestamp=$(date +"%m%d%y_%H%M%S")
-    local snap_dir="${BACKUP_DIR}/backup_${timestamp}"
-    mkdir -p "$snap_dir"
-
-    if [[ -d "$CONFIG_DIR" ]]; then
-        cp -a "$CONFIG_DIR" "${snap_dir}/picoclaw_config" 2>/dev/null || true
-        success "Backed up config dir"
-    fi
-
-    if [[ -f "$PICOCLAW_REAL" ]]; then
-        cp -a "$PICOCLAW_REAL" "${snap_dir}/picoclaw.bin" 2>/dev/null || true
-        success "Backed up binary"
-    fi
-
-    success "Minimal backup complete: ${snap_dir}"
-    info "Install CLI wrapper to enable full backup features"
-}
-
-# ════════════════════════════════════════════════
 # STEP 11: UNIFIED CLI WRAPPER + LOGIN BANNER
 # ════════════════════════════════════════════════
 install_extras() {
@@ -3365,7 +3333,8 @@ OLLAMA_SVC="ollama"
 G='\033[0;32m'; R='\033[0;31m'; Y='\033[1;33m'
 C='\033[0;36m'; B='\033[1m'; D='\033[2m'; M='\033[0;35m'; N='\033[0m'
 
-# CLI Model Lists
+# CLI Model Lists — full list for post-install model switching.
+# Intentionally broader than WIZARD_MODELS_* (wizard shows curated subset).
 CLI_MODELS_OPENROUTER="anthropic/claude-sonnet-4.5|Anthropic latest Sonnet, best coding+agents
 anthropic/claude-opus-4.6|Anthropic most powerful, complex challenges
 anthropic/claude-opus-4.5|Anthropic strong all-rounder
@@ -4657,13 +4626,15 @@ cmd_backup() {
     local subcmd="${2:-}"
 
     case "$subcmd" in
-        --auto)  _backup_run "auto" ;;
-        list)    _backup_list ;;
-        settings) _backup_settings ;;
-        "")      _backup_interactive ;;
+        --auto)    _backup_run "auto" ;;
+        --initial) _backup_run "initial" ;;
+        --manual)  _backup_run "manual" ;;
+        list)      _backup_list ;;
+        settings)  _backup_settings ;;
+        "")        _backup_interactive ;;
         *)
             printf "  ${R}✘ Unknown backup sub-command: ${subcmd}${N}\n"
-            printf "  ${D}Usage: picoclaw backup [--auto|list|settings]${N}\n"
+            printf "  ${D}Usage: picoclaw backup [--auto|--manual|--initial|list|settings]${N}\n"
             exit 1
             ;;
     esac
@@ -6850,6 +6821,60 @@ echo ""
 BNEOF
     chmod +x /etc/profile.d/picoclaw.sh
     success "Login banner → /etc/profile.d/picoclaw.sh"
+}
+
+# ════════════════════════════════════════════════
+# STEP 12: INITIAL BACKUP
+# ════════════════════════════════════════════════
+initial_backup() {
+    step "12/13" "Initial Backup"
+
+    printf "  ${DIM}Creating a snapshot of the freshly installed system.${NC}\n"
+    printf "  ${DIM}This serves as your recovery point if anything changes.${NC}\n"
+
+    if [[ "$SETUP_AUTOBACKUP" == "true" ]]; then
+        info "Automatic backups enabled — creating initial snapshot..."
+        _do_backup "initial"
+    else
+        if ask_yn "Create initial backup now?" "y"; then
+            _do_backup "initial"
+        else
+            info "Skipped — create one anytime with: picoclaw backup"
+        fi
+    fi
+}
+
+# ════════════════════════════════════════════════
+# BACKUP ENGINE — Delegates to CLI wrapper
+# ════════════════════════════════════════════════
+_do_backup() {
+    local trigger="${1:-manual}"
+
+    # Delegate to CLI wrapper if available (installed in step 11)
+    if [[ -x "$PICOCLAW_BIN" ]]; then
+        "$PICOCLAW_BIN" backup "--${trigger}"
+        return $?
+    fi
+
+    # Minimal fallback if CLI wrapper doesn't exist (should never happen)
+    warn "CLI wrapper not found — creating minimal backup fallback"
+    local timestamp
+    timestamp=$(date +"%m%d%y_%H%M%S")
+    local snap_dir="${BACKUP_DIR}/backup_${timestamp}"
+    mkdir -p "$snap_dir"
+
+    if [[ -d "$CONFIG_DIR" ]]; then
+        cp -a "$CONFIG_DIR" "${snap_dir}/picoclaw_config" 2>/dev/null || true
+        success "Backed up config dir"
+    fi
+
+    if [[ -f "$PICOCLAW_REAL" ]]; then
+        cp -a "$PICOCLAW_REAL" "${snap_dir}/picoclaw.bin" 2>/dev/null || true
+        success "Backed up binary"
+    fi
+
+    success "Minimal backup complete: ${snap_dir}"
+    info "Install CLI wrapper to enable full backup features"
 }
 
 # ════════════════════════════════════════════════
